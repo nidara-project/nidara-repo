@@ -32,8 +32,8 @@ jobs:
         # moving archlinux:latest base — same rationale as install.sh.
         run: |
           pacman -Syu --needed --noconfirm \
-            base-devel git meson ninja vala gobject-introspection glib2-devel \
-            gtk3 gtk4 gtk-layer-shell gtk4-layer-shell libpeas-2 \
+            base-devel git cmake meson ninja vala gobject-introspection glib2-devel \
+            gtk3 gtk4 gtk-layer-shell gtk4-layer-shell wayland-protocols libpeas-2 \
             libpulse networkmanager bluez-libs upower libnotify \
             wireplumber pam json-glib \
             nodejs npm gjs go
