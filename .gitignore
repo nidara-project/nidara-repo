@@ -1,0 +1,6 @@
+# Build outputs — produced by scripts/build-repo.sh, published by CI, never committed.
+/x86_64/
+/site/
+/.srccache/
+*.pkg.tar.*
+*.log

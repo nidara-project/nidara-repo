@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>nidara-repo</title>
+<style>body{font:16px/1.5 system-ui,sans-serif;max-width:46rem;margin:3rem auto;padding:0 1rem}pre{background:#f4f4f5;padding:1rem;border-radius:.5rem;overflow:auto}</style>
+<h1>nidara-repo</h1>
+<p>A pacman binary repository for
+<a href="https://github.com/nidara-project/nidara-desktop">Nidara</a> — pre-built
+copies of the Astal libraries, the <code>ags</code> CLI, and
+<code>appmenu-glib-translator</code>.</p>
+<p>Add to the end of <code>/etc/pacman.conf</code>:</p>
+<pre>[nidara]
+SigLevel = Optional TrustAll
+Server = https://nidara-project.github.io/nidara-repo/$arch</pre>
+<p>Then <code>sudo pacman -Sy &amp;&amp; sudo pacman -S aylurs-gtk-shell</code>.</p>
+<p>Packages live under <a href="x86_64/">x86_64/</a>.</p>

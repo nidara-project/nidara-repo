@@ -1,0 +1,22 @@
+pkgname=appmenu-glib-translator
+pkgver=25.04.raea4ea3
+pkgrel=1
+_commit=aea4ea398b7c75494f23f5e5bdb4f495d615059f
+pkgdesc="DBusMenu→GMenuModel translator (pinned for Nidara)"
+arch=(x86_64)
+url="https://gitlab.com/vala-panel-project/vala-panel-appmenu"
+license=(LGPL3)
+depends=()
+makedepends=(meson ninja vala gobject-introspection git glib2-devel)
+options=(!debug)
+source=("vala-panel-appmenu::git+https://gitlab.com/vala-panel-project/vala-panel-appmenu.git#commit=$_commit")
+sha256sums=('SKIP')
+build() {
+  cd "$srcdir/vala-panel-appmenu/subprojects/appmenu-glib-translator"
+  meson setup build --prefix=/usr --buildtype=release
+  meson compile -C build
+}
+package() {
+  cd "$srcdir/vala-panel-appmenu/subprojects/appmenu-glib-translator"
+  DESTDIR="$pkgdir" meson install -C build
+}

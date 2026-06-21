@@ -1,0 +1,23 @@
+pkgname=aylurs-gtk-shell
+pkgver=3.1.2
+pkgrel=1
+_ref=v3.1.2
+pkgdesc="Aylur's GTK Shell (ags) CLI, pinned for Nidara"
+arch=(x86_64)
+url="https://github.com/Aylur/ags"
+license=(GPL3)
+depends=(astal-gjs gjs)
+makedepends=(meson ninja vala gobject-introspection git nodejs npm go glib2-devel)
+options=(!debug)
+source=("ags::git+https://github.com/Aylur/ags.git#tag=$_ref")
+sha256sums=('SKIP')
+build() {
+  cd "$srcdir/ags"
+  npm install
+  meson setup build --prefix=/usr --buildtype=release
+  meson compile -C build
+}
+package() {
+  cd "$srcdir/ags"
+  DESTDIR="$pkgdir" meson install -C build
+}

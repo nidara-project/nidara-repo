@@ -1,0 +1,77 @@
+name: build-repo
+
+# Build every dependency package in an Arch container and publish the pacman
+# repository to GitHub Pages at https://nidara-project.github.io/nidara-repo/$arch
+on:
+  push:
+    branches: [main]
+    paths:
+      - pins.env
+      - packages/**
+      - scripts/**
+      - .github/workflows/build.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never run two publishes at once; let an in-flight build finish (don't cancel a
+# half-published repo).
+concurrency:
+  group: nidara-repo-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    steps:
+      - name: Toolchain
+        # -Syu (never bare -Sy): a partial sync would mismatch sonames against the
+        # moving archlinux:latest base — same rationale as install.sh.
+        run: |
+          pacman -Syu --needed --noconfirm \
+            base-devel git meson ninja vala gobject-introspection glib2-devel \
+            gtk3 gtk4 gtk-layer-shell gtk4-layer-shell libpeas-2 \
+            libpulse networkmanager bluez-libs upower libnotify \
+            wireplumber pam json-glib \
+            nodejs npm gjs go
+
+      - uses: actions/checkout@v4
+
+      - name: Build packages + assemble repo
+        env:
+          OUT: ${{ github.workspace }}/site/x86_64
+        # build-repo.sh runs as root here: it creates the unprivileged `builder`
+        # user itself (makepkg refuses root) and installs each package before the
+        # next (pkg-config discovery between Astal libs).
+        run: bash scripts/build-repo.sh
+
+      - name: Landing page
+        run: cp index.html "${{ github.workspace }}/site/index.html"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

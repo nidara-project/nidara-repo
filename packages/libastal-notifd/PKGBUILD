@@ -1,0 +1,23 @@
+pkgname=libastal-notifd
+pkgver=0.1.0.r948805f
+pkgrel=1
+_subdir=lib/notifd
+_commit=948805f6e8cf7f8c08eba06ab1db1eef0e75e3a0
+pkgdesc="Astal library (lib/notifd), pinned for Nidara"
+arch=(x86_64)
+url="https://github.com/Aylur/astal"
+license=(LGPL3)
+depends=()
+makedepends=(meson ninja vala gobject-introspection git glib2-devel)
+options=(!debug)
+source=("astal::git+https://github.com/Aylur/astal.git#commit=$_commit")
+sha256sums=('SKIP')
+build() {
+  cd "$srcdir/astal/$_subdir"
+  meson setup build --prefix=/usr --buildtype=release
+  meson compile -C build
+}
+package() {
+  cd "$srcdir/astal/$_subdir"
+  DESTDIR="$pkgdir" meson install -C build
+}
