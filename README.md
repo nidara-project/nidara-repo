@@ -61,8 +61,10 @@ git add pins.env packages/ && git commit
 Pushing to `main` triggers the workflow, which rebuilds every package in an Arch
 container and republishes the repo to GitHub Pages.
 
-> **Lockstep note:** until `nidara-desktop`'s `install.sh` consumes this repo, its
-> `ASTAL_REF` / `AGS_REF` / `APPMENU_REF` must be bumped together with `pins.env`.
+> **Lockstep note:** `nidara-desktop`'s `install.sh` consumes this repo, but it also keeps
+> its own `ASTAL_REF` / `AGS_REF` / `APPMENU_REF` (used for its from-source fallback when the
+> repo is unreachable, and for the update pin-skip), so those must still be bumped together
+> with `pins.env`.
 
 ## Build locally
 
