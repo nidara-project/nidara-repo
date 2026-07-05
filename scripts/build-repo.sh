@@ -63,8 +63,9 @@ for pkg in "${ORDER[@]}"; do
     as_root pacman -U --noconfirm --overwrite '*' "$pkgfile"
 done
 
-# Sign BEFORE repo-add: repo-add embeds each package's detached signature (the
-# PGPSIG field of its db entry) when the .sig sits next to the package file.
+# Sign each package with a detached .sig published next to it — that's what
+# pacman (≥6.1) downloads and verifies; repo-add no longer embeds signatures
+# in the db. Signing before repo-add keeps the option open either way.
 if [ -n "${GPGKEY:-}" ]; then
     echo "──────> signing packages with $GPGKEY"
     for f in "$OUT"/*.pkg.tar.*; do
