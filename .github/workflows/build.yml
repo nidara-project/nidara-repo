@@ -36,9 +36,18 @@ jobs:
             gtk3 gtk4 gtk-layer-shell gtk4-layer-shell wayland-protocols libpeas-2 \
             libpulse networkmanager bluez-libs upower libnotify \
             wireplumber pam json-glib \
-            nodejs npm gjs go
+            nodejs npm gjs go gnupg
 
       - uses: actions/checkout@v4
+
+      - name: Import signing key
+        # Dedicated repo-signing key (no passphrase; exists only in this secret +
+        # the maintainer's offline backup). A missing/corrupt secret must FAIL the
+        # build here — silently publishing unsigned packages would break every
+        # install that verifies with SigLevel = Required.
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: echo "$GPG_PRIVATE_KEY" | gpg --batch --import
 
       - name: Build packages + assemble repo
         # Relative path on purpose: in a container job ${{ github.workspace }}
@@ -48,13 +57,18 @@ jobs:
         # real workspace mount), which is what upload-artifact then publishes.
         env:
           OUT: site/x86_64
+          # Fingerprint of the imported signing key. Setting GPGKEY makes
+          # build-repo.sh sign every package + the repo db (and fail if it can't).
+          GPGKEY: 80B0AC8C36A43611A8619959B06B716279F755A9
         # build-repo.sh runs as root here: it creates the unprivileged `builder`
         # user itself (makepkg refuses root) and installs each package before the
         # next (pkg-config discovery between Astal libs).
         run: bash scripts/build-repo.sh
 
-      - name: Landing page
-        run: cp index.html site/index.html
+      - name: Landing page + public key
+        run: |
+          cp index.html site/index.html
+          cp nidara.gpg site/nidara.gpg
 
       - uses: actions/upload-artifact@v4
         with:

@@ -7,9 +7,14 @@
 <a href="https://github.com/nidara-project/nidara-desktop">Nidara</a> — pre-built
 copies of the Astal libraries, the <code>ags</code> CLI, and
 <code>appmenu-glib-translator</code>.</p>
+<p>Import the signing key (<a href="nidara.gpg">nidara.gpg</a>):</p>
+<pre>curl -fsSL https://nidara-project.github.io/nidara-repo/nidara.gpg | sudo pacman-key --add -
+sudo pacman-key --lsign-key 80B0AC8C36A43611A8619959B06B716279F755A9</pre>
 <p>Add to the end of <code>/etc/pacman.conf</code>:</p>
 <pre>[nidara]
-SigLevel = Optional TrustAll
+SigLevel = Required DatabaseOptional
 Server = https://nidara-project.github.io/nidara-repo/$arch</pre>
 <p>Then <code>sudo pacman -Sy &amp;&amp; sudo pacman -S aylurs-gtk-shell</code>.</p>
-<p>Packages live under <a href="x86_64/">x86_64/</a>.</p>
+<p>Packages live under <a href="x86_64/">x86_64/</a>. All packages and the repo
+database are signed; the key is committed in the
+<a href="https://github.com/nidara-project/nidara-repo">source repo</a>.</p>

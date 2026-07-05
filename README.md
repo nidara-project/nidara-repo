@@ -17,11 +17,18 @@ pacman packages.
 
 ## Use it
 
+Import the repo's signing key (also committed here as [`nidara.gpg`](nidara.gpg)):
+
+```bash
+curl -fsSL https://nidara-project.github.io/nidara-repo/nidara.gpg | sudo pacman-key --add -
+sudo pacman-key --lsign-key 80B0AC8C36A43611A8619959B06B716279F755A9
+```
+
 Add this to the **end** of `/etc/pacman.conf`:
 
 ```ini
 [nidara]
-SigLevel = Optional TrustAll
+SigLevel = Required DatabaseOptional
 Server = https://nidara-project.github.io/nidara-repo/$arch
 ```
 
@@ -34,9 +41,20 @@ sudo pacman -S aylurs-gtk-shell   # pulls astal-gjs + the libastal-* stack
 
 ### Signing
 
-Packages are **unsigned for now** (`SigLevel = Optional TrustAll`); trust rests on
-HTTPS + GitHub + the auditable CI build. GPG signing (a `nidara-keyring` package and
-`SigLevel = Required`) is planned before any wide / ISO-based distribution.
+Every package **and** the repo database are signed by the build workflow with the
+project's dedicated key:
+
+```
+Nidara Package Signing (nidara-repo)
+80B0AC8C36A43611A8619959B06B716279F755A9  (ed25519)
+```
+
+The public key ships in this repo ([`nidara.gpg`](nidara.gpg)) and at
+`https://nidara-project.github.io/nidara-repo/nidara.gpg`; the private key exists
+only as a GitHub Actions secret (plus the maintainer's offline backup) — it is
+never in the git history. `SigLevel = Required DatabaseOptional` matches the
+official Arch repos' semantics: package signatures are mandatory, the (also
+signed) database is verified when the signature is present.
 
 ## What's in here
 

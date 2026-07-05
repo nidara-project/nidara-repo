@@ -13,7 +13,13 @@
 # database (nidara.db / nidara.files). repo-add writes those as symlinks; we turn
 # them into real files because GitHub Pages does not follow symlinks.
 #
-# Usage:  OUT=/path/to/x86_64 bash scripts/build-repo.sh
+# Signing: when $GPGKEY is set (CI always sets it), every package gets a detached
+# .sig and the db is signed too (repo-add --sign). The key must already be in the
+# invoking user's gpg keyring — any signing failure aborts the build; publishing
+# unsigned would break installs that verify with SigLevel = Required. Unset GPGKEY
+# (local dev builds) skips signing entirely.
+#
+# Usage:  OUT=/path/to/x86_64 [GPGKEY=<fpr>] bash scripts/build-repo.sh
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -57,15 +63,30 @@ for pkg in "${ORDER[@]}"; do
     as_root pacman -U --noconfirm --overwrite '*' "$pkgfile"
 done
 
+# Sign BEFORE repo-add: repo-add embeds each package's detached signature (the
+# PGPSIG field of its db entry) when the .sig sits next to the package file.
+if [ -n "${GPGKEY:-}" ]; then
+    echo "──────> signing packages with $GPGKEY"
+    for f in "$OUT"/*.pkg.tar.*; do
+        [[ "$f" == *.sig ]] && continue
+        gpg --batch --yes -u "$GPGKEY" --detach-sign "$f"
+    done
+fi
+
 echo "──────> assembling repo database ($DBNAME.db)"
-( cd "$OUT" && repo-add "$DBNAME.db.tar.gz" ./*.pkg.tar.* )
+( cd "$OUT"
+  pkgs=()
+  for f in ./*.pkg.tar.*; do [[ "$f" == *.sig ]] || pkgs+=("$f"); done
+  # shellcheck disable=SC2086  # ${GPGKEY:+…} expands to two words on purpose
+  repo-add ${GPGKEY:+--sign --key "$GPGKEY"} "$DBNAME.db.tar.gz" "${pkgs[@]}" )
 
 # GitHub Pages serves static files and does NOT follow symlinks; repo-add leaves
-# nidara.db / nidara.files as symlinks to the .tar.gz. Replace with real copies so
-# pacman can fetch `<Server>/nidara.db`.
+# nidara.db / nidara.files (and their .sig twins when signing) as symlinks to the
+# .tar.gz files. Replace with real copies so pacman can fetch `<Server>/nidara.db`.
 ( cd "$OUT"
-  for f in "$DBNAME.db" "$DBNAME.files"; do
-      [ -L "$f" ] && cp --remove-destination "$(readlink -f "$f")" "$f"
+  for f in "$DBNAME.db" "$DBNAME.files" "$DBNAME.db.sig" "$DBNAME.files.sig"; do
+      [ -L "$f" ] || continue
+      cp --remove-destination "$(readlink -f "$f")" "$f"
   done )
 
 echo "──────> repo assembled in $OUT"
