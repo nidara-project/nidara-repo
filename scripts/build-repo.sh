@@ -28,6 +28,11 @@ PKGDIR="$HERE/packages"
 OUT="${OUT:-$HERE/x86_64}"
 DBNAME="nidara"
 BUILD_USER="${BUILD_USER:-builder}"
+# pins.env is read here only for NIDARA_REF (the nidara-desktop release to
+# package, below); the dependency pins in it are consumed by gen-pkgbuilds.sh
+# at commit time, not at build time.
+# shellcheck source=/dev/null
+source "$HERE/pins.env"
 # Shared source cache: the astal/ags git clones happen once and are reused across
 # all 16 astal builds (every astal PKGBUILD pins the same commit).
 export SRCDEST="${SRCDEST:-$HERE/.srccache}"
@@ -62,6 +67,47 @@ for pkg in "${ORDER[@]}"; do
     cp -f "$pkgfile" "$OUT/"
     as_root pacman -U --noconfirm --overwrite '*' "$pkgfile"
 done
+
+# ── nidara itself (the desktop package) ───────────────────────────────────────
+# Built from the nidara-desktop release tag pinned in pins.env (NIDARA_REF),
+# with the PKGBUILD that ships INSIDE that tag (packaging/nidara/) — the recipe
+# travels with the release, so it can never drift from the tree it packages,
+# and nothing about nidara's layout is committed in this repo. Built LAST on
+# purpose: its build (ags bundle ×3) needs the whole Astal/AGS stack, which the
+# loop above just installed into this host. The downloaded tarball is placed
+# under the exact name the PKGBUILD's source= expects, so makepkg uses it
+# instead of re-downloading. Not pacman -U'd: nothing later needs the DE
+# installed here. Empty NIDARA_REF skips (releases predating the packaging
+# switch).
+if [ -n "${NIDARA_REF:-}" ]; then
+    echo "──────> building nidara ($NIDARA_REF)"
+    nver="${NIDARA_REF#v}"
+    ndir="$HERE/.nidara-build"
+    rm -rf "$ndir"
+    mkdir -p "$ndir"
+    curl -fsSL "https://github.com/nidara-project/nidara-desktop/archive/refs/tags/$NIDARA_REF.tar.gz" \
+        -o "$ndir/nidara-desktop-$nver.tar.gz"
+    tar -xzf "$ndir/nidara-desktop-$nver.tar.gz" -C "$ndir" \
+        "nidara-desktop-$nver/packaging/nidara/PKGBUILD" \
+        "nidara-desktop-$nver/packaging/nidara/nidara.install" \
+        "nidara-desktop-$nver/VERSION"
+    cp "$ndir/nidara-desktop-$nver/packaging/nidara/PKGBUILD" \
+       "$ndir/nidara-desktop-$nver/packaging/nidara/nidara.install" "$ndir/"
+    # Lockstep gate: the tag name, the tag's VERSION file and the PKGBUILD's
+    # pkgver are bumped in the same release commit — refuse to publish a
+    # package whose label disagrees with the tree it was built from.
+    _pkgver="$(grep '^pkgver=' "$ndir/PKGBUILD" | head -1 | cut -d= -f2)"
+    _treever="$(tr -d '[:space:]' < "$ndir/nidara-desktop-$nver/VERSION")"
+    if [ "$_pkgver" != "$nver" ] || [ "$_treever" != "$nver" ]; then
+        echo "[ERR] lockstep violation: tag=$nver VERSION=$_treever pkgver=$_pkgver" >&2
+        exit 1
+    fi
+    if [ "$(id -u)" -eq 0 ]; then chown -R "$BUILD_USER" "$ndir"; fi
+    ( cd "$ndir" && as_builder env SRCDEST="$SRCDEST" makepkg -f --noconfirm --nodeps --skipinteg --noprogressbar )
+    pkgfile="$(ls -t "$ndir"/*.pkg.tar.* 2>/dev/null | head -1)"
+    [ -n "$pkgfile" ] || { echo "[ERR] makepkg produced no nidara package" >&2; exit 1; }
+    cp -f "$pkgfile" "$OUT/"
+fi
 
 # Sign each package with a detached .sig published next to it — that's what
 # pacman (≥6.1) downloads and verifies; repo-add no longer embeds signatures
