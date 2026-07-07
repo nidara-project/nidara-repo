@@ -1,19 +1,21 @@
 # nidara-repo
 
-A small **pacman binary repository** that ships pre-built copies of the few
-dependencies [Nidara](https://github.com/nidara-project/nidara-desktop) needs that
-are **not in the official Arch repositories** — the [Astal](https://github.com/Aylur/astal)
-service libraries, the [`ags`](https://github.com/Aylur/ags) CLI, and
-`appmenu-glib-translator`.
+A small **pacman binary repository** for [Nidara](https://github.com/nidara-project/nidara-desktop):
+**`nidara` itself** (the desktop, packaged from each release tag) plus the few
+dependencies it needs that are **not in the official Arch repositories** — the
+[Astal](https://github.com/Aylur/astal) service libraries, the
+[`ags`](https://github.com/Aylur/ags) CLI, and `appmenu-glib-translator`.
 
 Without this repo, Nidara's installer compiles all of them from source on every
 machine (minutes per install/update). With it, they install in seconds as normal
 pacman packages.
 
-> This repo contains **only third-party, open-source dependencies** — none of
-> Nidara's own code. Every package is built in the open by the
+> Every package is built in the open by the
 > [`build-repo` workflow](.github/workflows/build.yml) from the pinned revisions
-> in [`pins.env`](pins.env).
+> in [`pins.env`](pins.env). The `nidara` package is built with the PKGBUILD that
+> ships **inside** its release tag (`packaging/nidara/` in nidara-desktop), so the
+> recipe can never drift from the tree it packages — this repo commits nothing
+> about Nidara's layout.
 
 ## Use it
 
@@ -36,8 +38,12 @@ Then:
 
 ```bash
 sudo pacman -Sy
-sudo pacman -S aylurs-gtk-shell   # pulls astal-gjs + the libastal-* stack
+sudo pacman -S nidara             # the whole desktop (pulls the stack below)
+nidara-setup                      # one-time setup: greeter, services, user config
 ```
+
+Individual dependency packages work too, e.g.
+`sudo pacman -S aylurs-gtk-shell` (pulls `astal-gjs`).
 
 ### Signing
 
@@ -60,24 +66,32 @@ signed) database is verified when the signature is present.
 
 | Package | Upstream | Pinned by |
 |---|---|---|
+| `nidara` | github nidara-project/nidara-desktop (release tags) | `NIDARA_REF` |
 | `appmenu-glib-translator` | gitlab vala-panel-appmenu | `APPMENU_REF` |
 | `libastal-io`, `astal-quarrel`, `libastal-gtk3/gtk4`, `libastal-apps`, `libastal-hyprland`, `libastal-mpris`, `libastal-network`, `libastal-battery`, `libastal-notifd`, `libastal-bluetooth`, `libastal-tray`, `libastal-wireplumber`, `libastal-greet`, `libastal-auth`, `astal-gjs` | github Aylur/astal | `ASTAL_REF` |
 | `aylurs-gtk-shell` (the `ags` CLI) | github Aylur/ags | `AGS_REF` |
 
-The PKGBUILDs under [`packages/`](packages/) are committed and generated from
-`pins.env` by [`scripts/gen-pkgbuilds.sh`](scripts/gen-pkgbuilds.sh); they are
-lifted verbatim from `nidara-desktop`'s `install.sh`.
+The dependency PKGBUILDs under [`packages/`](packages/) are committed and
+generated from `pins.env` by [`scripts/gen-pkgbuilds.sh`](scripts/gen-pkgbuilds.sh);
+they are lifted verbatim from `nidara-desktop`'s `install.sh`. `nidara`'s own
+PKGBUILD is deliberately **not** here — `build-repo.sh` fetches the `NIDARA_REF`
+tag's tarball and builds with the PKGBUILD found inside it, refusing to publish
+if the tag, its `VERSION` file and the PKGBUILD's `pkgver` disagree.
 
 ## Bump a pinned version
 
 ```bash
 # edit the SHA / tag in pins.env, then:
-bash scripts/gen-pkgbuilds.sh   # regenerate the committed PKGBUILDs
+bash scripts/gen-pkgbuilds.sh   # regenerate the committed PKGBUILDs (deps only)
 git add pins.env packages/ && git commit
 ```
 
 Pushing to `main` triggers the workflow, which rebuilds every package in an Arch
 container and republishes the repo to GitHub Pages.
+
+**Releasing Nidara:** tag `vX.Y.Z` in `nidara-desktop`, then set
+`NIDARA_REF=vX.Y.Z` in `pins.env` (one line) and push — CI builds the new
+`nidara` package from that tag and republishes.
 
 > **Lockstep note:** `nidara-desktop`'s `install.sh` consumes this repo, but it also keeps
 > its own `ASTAL_REF` / `AGS_REF` / `APPMENU_REF` (used for its from-source fallback when the

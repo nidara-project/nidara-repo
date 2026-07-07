@@ -36,7 +36,8 @@ jobs:
             gtk3 gtk4 gtk-layer-shell gtk4-layer-shell wayland-protocols libpeas-2 \
             libpulse networkmanager bluez-libs upower libnotify \
             wireplumber pam json-glib \
-            nodejs npm gjs go gnupg
+            nodejs npm gjs go gnupg \
+            wayland wlr-protocols
 
       - uses: actions/checkout@v4
 
