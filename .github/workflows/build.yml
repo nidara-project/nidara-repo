@@ -10,15 +10,28 @@ on:
       - packages/**
       - scripts/**
       - .github/workflows/build.yml
+  # PRs run the SAME build, unsigned and unpublished (see the two `if:`s below).
+  # This is the only place a change to the dependency chain can be proven before
+  # it lands: the build container is the one machine where a missing makedepend
+  # is fatal, and a clean-install VM does not stand in for it (there the deps
+  # arrive with the rest of the system). Costs a full build per PR — worth it for
+  # a repo whose failure mode is "a release dies halfway through".
+  pull_request:
+    paths:
+      - pins.env
+      - packages/**
+      - scripts/**
+      - .github/workflows/build.yml
   workflow_dispatch:
 
 permissions:
   contents: read
 
 # Never run two publishes at once; let an in-flight build finish (don't cancel a
-# half-published repo).
+# half-published repo). Keyed by ref so a PR build never queues behind (or ahead
+# of) a publish on main.
 concurrency:
-  group: nidara-repo-pages
+  group: nidara-repo-pages-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -27,33 +40,42 @@ jobs:
     container:
       image: archlinux:latest
     steps:
-      - name: Toolchain
-        # -Syu (never bare -Sy): a partial sync would mismatch sonames against the
-        # moving archlinux:latest base — same rationale as install.sh.
+      - name: Bootstrap
+        # Just enough to check out the repo and run scripts/build-deps.sh: makepkg
+        # + compiler (base-devel), git for the checkout, curl for the release
+        # tarball that carries nidara's PKGBUILD, gnupg for signing. The real
+        # toolchain is derived two steps down — it cannot be, until the repo is
+        # checked out.
         #
-        # ⚠️ This list is a HAND-WRITTEN union of the four PKGBUILDs' makedepends,
-        # and it drifts SILENTLY: build-repo.sh runs makepkg with --nodeps (the
-        # chain pacman -U's each package into the build host, so makepkg must not
-        # resolve deps itself), which means a makedepend declared in a PKGBUILD but
-        # missing HERE is simply absent at build time. Nothing warns; it surfaces as
-        # a build failure during a release. hyprland-protocols was added 2026-08-11,
-        # when v0.7.0 became the first release to generate Wayland protocol glue and
-        # the nidara package died on a missing hyprland-focus-grab-v1.xml — declared
-        # correctly in packaging/nidara/PKGBUILD, never installed here. A clean-install
-        # VM does NOT catch this: there the XML arrives with Hyprland itself.
-        # The real fix is to DERIVE this from the PKGBUILDs instead of retyping it.
-        run: |
-          pacman -Syu --needed --noconfirm \
-            base-devel git cmake meson ninja vala gobject-introspection glib2-devel \
-            gtk3 gtk4 gtk-layer-shell gtk4-layer-shell wayland-protocols hyprland-protocols libpeas-2 \
-            libpulse networkmanager bluez-libs upower libnotify \
-            wireplumber pam json-glib \
-            nodejs npm gjs go gnupg \
-            wayland wlr-protocols
+        # -Syu (never bare -Sy): a partial sync would mismatch sonames against the
+        # moving archlinux:latest base — same rationale as install.sh. This is the
+        # job's ONLY sync; the derived install below reuses this db on purpose.
+        run: pacman -Syu --needed --noconfirm base-devel git curl gnupg
 
       - uses: actions/checkout@v4
 
+      - name: Toolchain (derived from the PKGBUILDs)
+        # No hand-written package list: build-deps.sh unions the makedepends of
+        # every packages/*/PKGBUILD with those of the PKGBUILD inside the pinned
+        # nidara-desktop tag. That union used to live here, retyped, and it drifted
+        # silently — build-repo.sh runs makepkg with --nodeps (deliberately: the
+        # chain pacman -U's each package into this host), so a makedepend declared
+        # in a PKGBUILD but missing from this step is simply absent at build time,
+        # with nothing to warn you. It bit v0.7.0: hyprland-protocols was declared
+        # in packaging/nidara/PKGBUILD, never installed here, and the release died
+        # on `missing protocol: …/hyprland-focus-grab-v1.xml`.
+        # To add a build dependency, declare it in the PKGBUILD that needs it.
+        run: |
+          deps="$(bash scripts/build-deps.sh)"
+          echo "$deps" | tr '\n' ' '; echo
+          # shellcheck disable=SC2086  # word splitting is the point
+          pacman -S --needed --noconfirm $deps
+
       - name: Import signing key
+        # PRs build unsigned: fork PRs cannot read the secret, and an unpublished
+        # build has nothing to sign. build-repo.sh skips signing when GPGKEY is
+        # empty (see the GPGKEY expression below).
+        if: github.event_name != 'pull_request'
         # Dedicated repo-signing key (no passphrase; exists only in this secret +
         # the maintainer's offline backup). A missing/corrupt secret must FAIL the
         # build here — silently publishing unsigned packages would break every
@@ -72,7 +94,9 @@ jobs:
           OUT: site/x86_64
           # Fingerprint of the imported signing key. Setting GPGKEY makes
           # build-repo.sh sign every package + the repo db (and fail if it can't).
-          GPGKEY: 80B0AC8C36A43611A8619959B06B716279F755A9
+          # Empty on PRs: no key was imported there, and signing would abort the
+          # build for a set of packages nobody is going to publish.
+          GPGKEY: ${{ github.event_name != 'pull_request' && '80B0AC8C36A43611A8619959B06B716279F755A9' || '' }}
         # build-repo.sh runs as root here: it creates the unprivileged `builder`
         # user itself (makepkg refuses root) and installs each package before the
         # next (pkg-config discovery between Astal libs).
@@ -90,6 +114,9 @@ jobs:
 
   deploy:
     needs: build
+    # Publishing is a main-push (or manual) act. A PR proves the build; it never
+    # replaces the live repo — the packages it produced are not even signed.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       pages: write

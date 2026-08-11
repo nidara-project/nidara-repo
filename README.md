@@ -78,6 +78,15 @@ PKGBUILD is deliberately **not** here — `build-repo.sh` fetches the `NIDARA_RE
 tag's tarball and builds with the PKGBUILD found inside it, refusing to publish
 if the tag, its `VERSION` file and the PKGBUILD's `pkgver` disagree.
 
+Their `makedepends` are load-bearing, not decoration: the workflow's build
+toolchain is **derived** from them by
+[`scripts/build-deps.sh`](scripts/build-deps.sh) (the union of every PKGBUILD's
+`makedepends`, including the one inside the `NIDARA_REF` tag, minus the packages
+this repo builds itself). `build-repo.sh` runs `makepkg --nodeps` on purpose, so
+nothing else installs a package's build deps — **to add one, declare it in the
+PKGBUILD that needs it** (for the astal/ags packages, in `gen-pkgbuilds.sh`),
+never in the workflow.
+
 ## Bump a pinned version
 
 ```bash
@@ -87,7 +96,10 @@ git add pins.env packages/ && git commit
 ```
 
 Pushing to `main` triggers the workflow, which rebuilds every package in an Arch
-container and republishes the repo to GitHub Pages.
+container and republishes the repo to GitHub Pages. A **pull request** touching
+`pins.env`, `packages/` or `scripts/` runs the same build unsigned and without
+the publish step — the build container is the only place a broken dependency
+chain actually shows up, so prove it there before merging.
 
 **Releasing Nidara:** tag `vX.Y.Z` in `nidara-desktop`, then set
 `NIDARA_REF=vX.Y.Z` in `pins.env` (one line) and push — CI builds the new
@@ -101,6 +113,7 @@ container and republishes the repo to GitHub Pages.
 ## Build locally
 
 ```bash
+sudo pacman -S --needed $(bash scripts/build-deps.sh)   # the same toolchain CI installs
 bash scripts/build-repo.sh        # builds every package + the repo db into ./x86_64
 ```
 

@@ -4,3 +4,4 @@
 /.srccache/
 *.pkg.tar.*
 *.log
+/.nidara-build/

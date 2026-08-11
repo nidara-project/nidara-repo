@@ -8,7 +8,7 @@ arch=(x86_64)
 url="https://github.com/Aylur/astal"
 license=(LGPL3)
 depends=()
-makedepends=(meson ninja vala gobject-introspection git glib2-devel)
+makedepends=(meson ninja vala gobject-introspection git glib2-devel networkmanager)
 options=(!debug)
 source=("astal::git+https://github.com/Aylur/astal.git#commit=$_commit")
 sha256sums=('SKIP')

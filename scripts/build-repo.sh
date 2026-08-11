@@ -83,11 +83,18 @@ if [ -n "${NIDARA_REF:-}" ]; then
     echo "──────> building nidara ($NIDARA_REF)"
     nver="${NIDARA_REF#v}"
     ndir="$HERE/.nidara-build"
-    rm -rf "$ndir"
+    tarball="$ndir/nidara-desktop-$nver.tar.gz"
+    # The tarball is KEPT between runs and only fetched when absent: scripts/
+    # build-deps.sh downloads it to this exact path to read the makedepends out
+    # of the very PKGBUILD built below, so in CI it is already here. Everything
+    # else in the dir is rebuilt from scratch.
     mkdir -p "$ndir"
-    curl -fsSL "https://github.com/nidara-project/nidara-desktop/archive/refs/tags/$NIDARA_REF.tar.gz" \
-        -o "$ndir/nidara-desktop-$nver.tar.gz"
-    tar -xzf "$ndir/nidara-desktop-$nver.tar.gz" -C "$ndir" \
+    rm -rf "$ndir/nidara-desktop-$nver" "$ndir/src" "$ndir/pkg"
+    rm -f "$ndir"/*.pkg.tar.*
+    [ -s "$tarball" ] || curl -fsSL \
+        "https://github.com/nidara-project/nidara-desktop/archive/refs/tags/$NIDARA_REF.tar.gz" \
+        -o "$tarball"
+    tar -xzf "$tarball" -C "$ndir" \
         "nidara-desktop-$nver/packaging/nidara/PKGBUILD" \
         "nidara-desktop-$nver/packaging/nidara/nidara.install" \
         "nidara-desktop-$nver/VERSION"

@@ -7,7 +7,7 @@ arch=(x86_64)
 url="https://github.com/Aylur/ags"
 license=(GPL3)
 depends=(astal-gjs gjs)
-makedepends=(meson ninja vala gobject-introspection git nodejs npm go glib2-devel)
+makedepends=(meson ninja vala gobject-introspection git glib2-devel nodejs npm go gjs gtk4-layer-shell astal-gjs)
 options=(!debug)
 source=("ags::git+https://github.com/Aylur/ags.git#tag=$_ref")
 sha256sums=('SKIP')
