@@ -30,10 +30,22 @@ jobs:
       - name: Toolchain
         # -Syu (never bare -Sy): a partial sync would mismatch sonames against the
         # moving archlinux:latest base — same rationale as install.sh.
+        #
+        # ⚠️ This list is a HAND-WRITTEN union of the four PKGBUILDs' makedepends,
+        # and it drifts SILENTLY: build-repo.sh runs makepkg with --nodeps (the
+        # chain pacman -U's each package into the build host, so makepkg must not
+        # resolve deps itself), which means a makedepend declared in a PKGBUILD but
+        # missing HERE is simply absent at build time. Nothing warns; it surfaces as
+        # a build failure during a release. hyprland-protocols was added 2026-08-11,
+        # when v0.7.0 became the first release to generate Wayland protocol glue and
+        # the nidara package died on a missing hyprland-focus-grab-v1.xml — declared
+        # correctly in packaging/nidara/PKGBUILD, never installed here. A clean-install
+        # VM does NOT catch this: there the XML arrives with Hyprland itself.
+        # The real fix is to DERIVE this from the PKGBUILDs instead of retyping it.
         run: |
           pacman -Syu --needed --noconfirm \
             base-devel git cmake meson ninja vala gobject-introspection glib2-devel \
-            gtk3 gtk4 gtk-layer-shell gtk4-layer-shell wayland-protocols libpeas-2 \
+            gtk3 gtk4 gtk-layer-shell gtk4-layer-shell wayland-protocols hyprland-protocols libpeas-2 \
             libpulse networkmanager bluez-libs upower libnotify \
             wireplumber pam json-glib \
             nodejs npm gjs go gnupg \
