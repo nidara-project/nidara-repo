@@ -7,7 +7,7 @@ arch=(x86_64)
 url="https://gitlab.com/vala-panel-project/vala-panel-appmenu"
 license=(LGPL3)
 depends=()
-makedepends=(meson ninja vala gobject-introspection git glib2-devel)
+makedepends=(meson ninja vala gobject-introspection git glib2-devel gdk-pixbuf2)
 options=(!debug)
 source=("vala-panel-appmenu::git+https://gitlab.com/vala-panel-project/vala-panel-appmenu.git#commit=$_commit")
 sha256sums=('SKIP')
