@@ -1,14 +1,30 @@
 # nidara-repo
 
 A small **pacman binary repository** for [Nidara](https://github.com/nidara-project/nidara-desktop):
-**`nidara` itself** (the desktop, packaged from each release tag) plus the few
-dependencies it needs that are **not in the official Arch repositories** — the
-[Astal](https://github.com/Aylur/astal) service libraries, the
-[`ags`](https://github.com/Aylur/ags) CLI, and `appmenu-glib-translator`.
+**`nidara` itself**, packaged from each release tag and GPG-signed.
 
-Without this repo, Nidara's installer compiles all of them from source on every
-machine (minutes per install/update). With it, they install in seconds as normal
-pacman packages.
+Without this repo, Nidara's installer builds the package on every machine
+(minutes per install/update). With it, it installs in seconds like any other.
+
+### ⚠️ The Astal/AGS packages here are TRANSITIONAL
+
+This repo also serves the [Astal](https://github.com/Aylur/astal) service
+libraries, the [`ags`](https://github.com/Aylur/ags) CLI and
+`appmenu-glib-translator` — 18 packages in all. **Nidara no longer uses any of
+them.** They were removed from the desktop between 2026-08-18 and 2026-08-19
+(the application host, the bundler, every service and the PAM layer are native
+now), and nothing in the current tree imports `gi://Astal*`.
+
+They stay published for exactly one reason: **`nidara` v0.7.2 is still the
+current release, it predates the removal by one day, and its `depends=()` names
+all 18.** Pulling them now would leave the published release impossible to
+install fresh — while already-installed machines would be unaffected, since
+pacman never removes a package merely because it left a repo.
+
+**They go the day v0.8.0 ships**, together with `pins.env`, the generator that
+produces them and the dependency-build step in CI. `nidara-setup` already warns
+about them on updated machines and prints the `pacman -Rns` line to clear them;
+they survive there as *explicitly installed*, so `pacman -Qdt` does not see them.
 
 > Every package is built in the open by the
 > [`build-repo` workflow](.github/workflows/build.yml) from the pinned revisions
@@ -38,7 +54,7 @@ Then:
 
 ```bash
 sudo pacman -Sy
-sudo pacman -S nidara             # the whole desktop (pulls the stack below)
+sudo pacman -S nidara             # the whole desktop
 nidara-setup                      # one-time setup: greeter, services, user config
 ```
 
