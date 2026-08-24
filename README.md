@@ -1,16 +1,40 @@
 # nidara-repo
 
-A small **pacman binary repository** for [Nidara](https://github.com/nidara-project/nidara-desktop):
-**`nidara` itself**, packaged from each release tag and GPG-signed.
+A small **pacman binary repository** for [Nidara](https://github.com/nidara-project/nidara-desktop),
+GPG-signed, holding two packages:
 
-Without this repo, Nidara's installer builds the package on every machine (minutes
+| Package | What it is |
+|---|---|
+| **`nidara`** | The desktop itself, packaged from each release tag. |
+| **`nidara-apps`** | A metapackage — no files, only dependencies — carrying the **curated application set**: what makes a freshly installed machine usable, as opposed to what the desktop needs to run. |
+
+Without this repo, Nidara's installer builds the desktop on every machine (minutes
 per install or update). With it, it installs in seconds like any other package.
 
-> The package is built in the open by the
+> `nidara` is built in the open by the
 > [`build-repo` workflow](.github/workflows/build.yml) with the PKGBUILD that ships
 > **inside** the release tag pinned in [`pins.env`](pins.env)
 > (`packaging/nidara/` in nidara-desktop), so the recipe can never drift from the
 > tree it packages — this repo commits nothing about Nidara's layout.
+>
+> `nidara-apps` is the exception, and deliberately so: its
+> [PKGBUILD lives here](packages/nidara-apps/PKGBUILD). The app set has to be
+> changeable without cutting a desktop release, and a desktop release must not be
+> forced to re-decide the app list. **Its contents are undecided** — it currently
+> holds exactly what the ISO already carried and nothing more.
+
+### Who installs which
+
+```
+install.sh    → nidara               never nidara-apps: it runs on an Arch
+                                     someone already uses, with their own
+                                     apps already chosen
+the ISO       → nidara + nidara-apps + the medium's own kernel, firmware and
+                                     installer tools (which never reach the
+                                     installed system)
+the installer → nidara + nidara-apps what lands on the disk
+anyone else   → pacman -S nidara-apps
+```
 
 ## Use it
 

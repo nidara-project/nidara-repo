@@ -1,0 +1,53 @@
+# Maintainer: Nidara Project <https://github.com/nidara-project>
+#
+# nidara-apps — the curated application set.
+#
+# ─── WHAT THIS IS FOR ────────────────────────────────────────────────────────
+# `nidara` answers "what does the desktop need to RUN" — its depends are the
+# things the shell would be broken without, the terminal and file manager it
+# shells out to included. This package answers a different question: "what makes
+# a freshly installed machine USABLE". A browser, a way to open a PDF, that kind
+# of thing. Nothing here is required by any code.
+#
+# Keeping the two apart is the point. It is what lets each install path make its
+# own choice with one line, instead of the answer being wherever it happened to
+# get typed:
+#
+#     install.sh   → nidara                    (never this package: it runs on an
+#                                               Arch someone already uses, with
+#                                               their own apps already chosen)
+#     the ISO      → nidara + nidara-apps      (+ the medium's own kernel,
+#                                               firmware and installer tools,
+#                                               which never reach the target)
+#     the installer→ nidara + nidara-apps      (what lands on the disk)
+#     anyone else  → pacman -S nidara-apps     (opt in, one command)
+#
+# ─── THE LIST IS DELIBERATELY UNDECIDED ──────────────────────────────────────
+# It holds today exactly what the ISO already carried, and nothing more, so that
+# standing up this machinery changed no product decision by accident. What
+# Nidara should ship — which browser, whether an image and document viewer
+# belong in a "curated" set at all, whether there should be a small list and a
+# generous one — has not been decided, and is better decided next to the
+# installer that will put it on someone's disk.
+#
+# TO CHANGE THE SET: edit depends= below and BUMP pkgver. Without the bump the
+# repo republishes the same version and no existing install ever sees the
+# change. pkgver is a plain counter on purpose — this package has no upstream
+# and no version of its own to track.
+#
+# Deliberately NOT depending on `nidara`: asking for the app set should not drag
+# in a whole desktop as a side effect. The ISO and the installer name both.
+pkgname=nidara-apps
+pkgver=1
+pkgrel=1
+pkgdesc="Nidara — the curated application set (metapackage, ships no files)"
+arch=(any)
+url="https://github.com/nidara-project/nidara-repo"
+license=(GPL-3.0-only)
+
+depends=(
+  # A machine with no way to browse the web is broken. This is the one entry
+  # that was already on the ISO before this package existed; Firefox vs anything
+  # else is not a decision anyone has taken yet.
+  firefox
+)

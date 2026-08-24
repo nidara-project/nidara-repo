@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# build-repo.sh — build the `nidara` package and assemble the pacman repo.
+# build-repo.sh — build the `nidara` packages and assemble the pacman repo.
 #
 # It used to build eighteen dependency packages first (Astal, ags,
 # appmenu-glib-translator), each `pacman -U`'d into the build host so the next
-# could find it. Nidara v0.8.0 uses none of them, so this builds one package.
+# could find it. Nidara v0.8.0 uses none of them, so this builds two of its own:
+# `nidara`, the desktop, from the pinned release tag; and `nidara-apps`, the
+# metapackage carrying the curated application set, from a PKGBUILD committed here.
 #
 # makepkg refuses to run as root, so when root we drop to $BUILD_USER.
 #
@@ -86,6 +88,27 @@ if [ -n "${NIDARA_REF:-}" ]; then
     [ -n "$pkgfile" ] || { echo "[ERR] makepkg produced no nidara package" >&2; exit 1; }
     cp -f "$pkgfile" "$OUT/"
 fi
+
+# ── nidara-apps (the curated application set) ─────────────────────────────────
+# A metapackage: no sources, no build, no files — its depends ARE the list. It
+# is committed HERE rather than travelling inside a nidara-desktop tag on
+# purpose: the set has to be changeable without cutting a desktop release, and
+# a desktop release must not be forced to re-decide the app list.
+#
+# makepkg writes into the PKGBUILD's own directory, so it builds in a copy —
+# the committed tree stays clean. --nodeps because a metapackage's depends are
+# what it INSTALLS on a user's machine; none of them belong on this builder.
+# No pacman -U, no signing or repo-add here either: both loops below already
+# sweep everything in $OUT.
+echo "──────> building nidara-apps"
+adir="$HERE/.apps-build"
+rm -rf "$adir"; mkdir -p "$adir"
+cp "$HERE/packages/nidara-apps/PKGBUILD" "$adir/"
+if [ "$(id -u)" -eq 0 ]; then chown -R "$BUILD_USER" "$adir"; fi
+( cd "$adir" && as_builder env SRCDEST="$SRCDEST" makepkg -f --noconfirm --nodeps --skipinteg --noprogressbar )
+appsfile="$(ls -t "$adir"/*.pkg.tar.* 2>/dev/null | head -1)"
+[ -n "$appsfile" ] || { echo "[ERR] makepkg produced no nidara-apps package" >&2; exit 1; }
+cp -f "$appsfile" "$OUT/"
 
 # Sign the package with a detached .sig published next to it — that's what
 # pacman (≥6.1) downloads and verifies; repo-add no longer embeds signatures
