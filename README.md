@@ -1,21 +1,16 @@
 # nidara-repo
 
 A small **pacman binary repository** for [Nidara](https://github.com/nidara-project/nidara-desktop):
-**`nidara` itself** (the desktop, packaged from each release tag) plus the few
-dependencies it needs that are **not in the official Arch repositories** — the
-[Astal](https://github.com/Aylur/astal) service libraries, the
-[`ags`](https://github.com/Aylur/ags) CLI, and `appmenu-glib-translator`.
+**`nidara` itself**, packaged from each release tag and GPG-signed.
 
-Without this repo, Nidara's installer compiles all of them from source on every
-machine (minutes per install/update). With it, they install in seconds as normal
-pacman packages.
+Without this repo, Nidara's installer builds the package on every machine (minutes
+per install or update). With it, it installs in seconds like any other package.
 
-> Every package is built in the open by the
-> [`build-repo` workflow](.github/workflows/build.yml) from the pinned revisions
-> in [`pins.env`](pins.env). The `nidara` package is built with the PKGBUILD that
-> ships **inside** its release tag (`packaging/nidara/` in nidara-desktop), so the
-> recipe can never drift from the tree it packages — this repo commits nothing
-> about Nidara's layout.
+> The package is built in the open by the
+> [`build-repo` workflow](.github/workflows/build.yml) with the PKGBUILD that ships
+> **inside** the release tag pinned in [`pins.env`](pins.env)
+> (`packaging/nidara/` in nidara-desktop), so the recipe can never drift from the
+> tree it packages — this repo commits nothing about Nidara's layout.
 
 ## Use it
 
@@ -38,16 +33,13 @@ Then:
 
 ```bash
 sudo pacman -Sy
-sudo pacman -S nidara             # the whole desktop (pulls the stack below)
+sudo pacman -S nidara             # the whole desktop
 nidara-setup                      # one-time setup: greeter, services, user config
 ```
 
-Individual dependency packages work too, e.g.
-`sudo pacman -S aylurs-gtk-shell` (pulls `astal-gjs`).
-
 ### Signing
 
-Every package **and** the repo database are signed by the build workflow with the
+The package **and** the repo database are signed by the build workflow with the
 project's dedicated key:
 
 ```
@@ -67,61 +59,54 @@ signed) database is verified when the signature is present.
 | Package | Upstream | Pinned by |
 |---|---|---|
 | `nidara` | github nidara-project/nidara-desktop (release tags) | `NIDARA_REF` |
-| `appmenu-glib-translator` | gitlab vala-panel-appmenu | `APPMENU_REF` |
-| `libastal-io`, `astal-quarrel`, `libastal-gtk3/gtk4`, `libastal-apps`, `libastal-hyprland`, `libastal-mpris`, `libastal-network`, `libastal-battery`, `libastal-notifd`, `libastal-bluetooth`, `libastal-tray`, `libastal-wireplumber`, `libastal-greet`, `libastal-auth`, `astal-gjs` | github Aylur/astal | `ASTAL_REF` |
-| `aylurs-gtk-shell` (the `ags` CLI) | github Aylur/ags | `AGS_REF` |
 
-The dependency PKGBUILDs under [`packages/`](packages/) are committed and
-generated from `pins.env` by [`scripts/gen-pkgbuilds.sh`](scripts/gen-pkgbuilds.sh);
-they are lifted verbatim from `nidara-desktop`'s `install.sh`. `nidara`'s own
-PKGBUILD is deliberately **not** here — `build-repo.sh` fetches the `NIDARA_REF`
-tag's tarball and builds with the PKGBUILD found inside it, refusing to publish
-if the tag, its `VERSION` file and the PKGBUILD's `pkgver` disagree.
+That is the whole table, and it was eighteen rows longer until Nidara **v0.8.0**.
+The [Astal](https://github.com/Aylur/astal) service libraries, the
+[`ags`](https://github.com/Aylur/ags) CLI and `appmenu-glib-translator` were built
+and served here because Nidara needed them and Arch does not carry them. Nidara
+absorbed all of it — the application host, the bundler, every service and the PAM
+layer are its own code now — and v0.8.0 is the first release whose `depends=()`
+names none of them, so they came out with it.
 
-Their `makedepends` are load-bearing, not decoration: the workflow's build
-toolchain is **derived** from them by
-[`scripts/build-deps.sh`](scripts/build-deps.sh) (the union of every PKGBUILD's
-`makedepends`, including the one inside the `NIDARA_REF` tag, minus the packages
-this repo builds itself). `build-repo.sh` runs `makepkg --nodeps` on purpose, so
-nothing else installs a package's build deps — **to add one, declare it in the
-PKGBUILD that needs it** (for the astal/ags packages, in `gen-pkgbuilds.sh`),
-never in the workflow.
+They were kept for one day longer than the code needed them, deliberately:
+v0.7.2 still declared all eighteen, and pulling a package the **current** release
+depends on would leave that release impossible to install fresh. Machines that
+already have them keep them — pacman never removes a package merely because it
+left a repo — and Nidara's `nidara-setup` prints the exact `pacman -Rns` line to
+clear them, without ever running it for you.
 
-## Bump a pinned version
+`nidara`'s PKGBUILD is deliberately **not** committed here: `build-repo.sh` fetches
+the `NIDARA_REF` tag's tarball and builds with the PKGBUILD found inside it,
+refusing to publish if the tag, its `VERSION` file and the PKGBUILD's `pkgver`
+disagree.
 
-```bash
-# edit the SHA / tag in pins.env, then:
-bash scripts/gen-pkgbuilds.sh   # regenerate the committed PKGBUILDs (deps only)
-git add pins.env packages/ && git commit
-```
+That PKGBUILD's `makedepends` are load-bearing, not decoration: the workflow's
+build toolchain is **derived** from them by
+[`scripts/build-deps.sh`](scripts/build-deps.sh). `build-repo.sh` runs
+`makepkg --nodeps` on purpose, so nothing else installs a build dep — **to add
+one, declare it in `packaging/nidara/PKGBUILD`** in nidara-desktop, never in the
+workflow. With the eighteen gone, that PKGBUILD is the only source left, and
+nothing else's toolchain can mask an omission in it.
 
-Pushing to `main` triggers the workflow, which rebuilds every package in an Arch
-container and republishes the repo to GitHub Pages. A **pull request** touching
-`pins.env`, `packages/` or `scripts/` runs the same build unsigned and without
-the publish step — the build container is the only place a broken dependency
-chain actually shows up, so prove it there before merging.
+## Releasing Nidara
 
-**Releasing Nidara:** tag `vX.Y.Z` in `nidara-desktop`, then set
-`NIDARA_REF=vX.Y.Z` in `pins.env` (one line) and push — CI builds the new
-`nidara` package from that tag and republishes.
-
-> **Lockstep note:** `nidara-desktop`'s `install.sh` consumes this repo, but it also keeps
-> its own `ASTAL_REF` / `AGS_REF` / `APPMENU_REF` (used for its from-source fallback when the
-> repo is unreachable, and for the update pin-skip), so those must still be bumped together
-> with `pins.env`.
+Tag `vX.Y.Z` in `nidara-desktop` **first**, then set `NIDARA_REF=vX.Y.Z` in
+`pins.env` (one line) and push — CI fetches the tag's tarball, so a pin ahead of
+the tag fails. Pushing to `main` rebuilds and republishes the repo to GitHub
+Pages. A **pull request** touching `pins.env` or `scripts/` runs the same build
+unsigned and without the publish step — prove it there before merging, and note
+that a green PR says nothing about the signature: that branch of the workflow
+only runs on `main`.
 
 ## Build locally
 
 ```bash
 sudo pacman -S --needed $(bash scripts/build-deps.sh)   # the same toolchain CI installs
-bash scripts/build-repo.sh        # builds every package + the repo db into ./x86_64
+bash scripts/build-repo.sh        # builds the package + the repo db into ./x86_64
 ```
 
-Needs an Arch system with `base-devel`. Each package is built then installed before
-the next (later Astal libs find earlier ones via `pkg-config`), so the build mutates
-the host's installed packages — run it in a container or VM if you don't want that.
+Needs an Arch system with `base-devel`.
 
 ## License
 
-Repository tooling: GPL-3.0 (see [`LICENSE`](LICENSE)). The packaged software keeps
-its own upstream licenses (Astal/appmenu: LGPL-3.0; ags: GPL-3.0).
+Repository tooling: GPL-3.0 (see [`LICENSE`](LICENSE)).

@@ -1,80 +1,51 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# build-repo.sh — build every dependency package and assemble the pacman repo.
+# build-repo.sh — build the `nidara` package and assemble the pacman repo.
 #
-# Mirrors nidara-desktop/install.sh's build_install_pkg contract: each package is
-# makepkg'd, then `pacman -U`'d INTO THE BUILD HOST before the next is built, so
-# later Astal libs find earlier ones via pkg-config (Astal has no root meson, the
-# libs are standalone and discover each other at build time). makepkg refuses to
-# run as root, so when root we drop to $BUILD_USER; pacman -U needs root, so when
-# not root we sudo. Same split install.sh uses.
+# It used to build eighteen dependency packages first (Astal, ags,
+# appmenu-glib-translator), each `pacman -U`'d into the build host so the next
+# could find it. Nidara v0.8.0 uses none of them, so this builds one package.
 #
-# Output: $OUT (default ./x86_64) containing every .pkg.tar.zst plus the repo
+# makepkg refuses to run as root, so when root we drop to $BUILD_USER.
+#
+# Output: $OUT (default ./x86_64) containing the .pkg.tar.zst plus the repo
 # database (nidara.db / nidara.files). repo-add writes those as symlinks; we turn
 # them into real files because GitHub Pages does not follow symlinks.
 #
-# Signing: when $GPGKEY is set (CI always sets it), every package gets a detached
+# Signing: when $GPGKEY is set (CI always sets it), the package gets a detached
 # .sig and the db is signed too (repo-add --sign). The key must already be in the
 # invoking user's gpg keyring — any signing failure aborts the build; publishing
 # unsigned would break installs that verify with SigLevel = Required. Unset GPGKEY
-# (local dev builds) skips signing entirely.
+# (local dev builds, and every pull request) skips signing entirely.
 #
 # Usage:  OUT=/path/to/x86_64 [GPGKEY=<fpr>] bash scripts/build-repo.sh
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PKGDIR="$HERE/packages"
 OUT="${OUT:-$HERE/x86_64}"
 DBNAME="nidara"
 BUILD_USER="${BUILD_USER:-builder}"
-# pins.env is read here only for NIDARA_REF (the nidara-desktop release to
-# package, below); the dependency pins in it are consumed by gen-pkgbuilds.sh
-# at commit time, not at build time.
+# pins.env carries NIDARA_REF, the release to package.
 # shellcheck source=/dev/null
 source "$HERE/pins.env"
-# Shared source cache: the astal/ags git clones happen once and are reused across
-# all 16 astal builds (every astal PKGBUILD pins the same commit).
 export SRCDEST="${SRCDEST:-$HERE/.srccache}"
 
-# Build order: appmenu first (tray links it), astal io first … astal-gjs, ags last.
-ORDER=(
-    appmenu-glib-translator
-    libastal-io astal-quarrel libastal-gtk3 libastal-gtk4 libastal-apps
-    libastal-hyprland libastal-mpris libastal-network libastal-battery
-    libastal-notifd libastal-bluetooth libastal-tray libastal-wireplumber
-    libastal-greet libastal-auth astal-gjs
-    aylurs-gtk-shell
-)
-
 as_builder() { if [ "$(id -u)" -eq 0 ]; then runuser -u "$BUILD_USER" -- "$@"; else "$@"; fi; }
-as_root()    { if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo "$@"; fi; }
 
 mkdir -p "$OUT" "$SRCDEST"
 if [ "$(id -u)" -eq 0 ]; then
     id "$BUILD_USER" &>/dev/null || useradd -m "$BUILD_USER"
-    chown -R "$BUILD_USER" "$PKGDIR" "$SRCDEST" "$OUT"
+    chown -R "$BUILD_USER" "$SRCDEST" "$OUT"
 fi
 
-for pkg in "${ORDER[@]}"; do
-    dir="$PKGDIR/$pkg"
-    [ -f "$dir/PKGBUILD" ] || { echo "[ERR] missing $dir/PKGBUILD — run scripts/gen-pkgbuilds.sh" >&2; exit 1; }
-    echo "──────> building $pkg"
-    # -f rebuild, --nodeps (order managed here), --skipinteg (git sources, SKIP sums)
-    ( cd "$dir" && as_builder env SRCDEST="$SRCDEST" makepkg -f --noconfirm --nodeps --skipinteg --noprogressbar )
-    pkgfile="$(ls -t "$dir"/*.pkg.tar.* 2>/dev/null | head -1)"
-    [ -n "$pkgfile" ] || { echo "[ERR] makepkg produced no package in $dir" >&2; exit 1; }
-    cp -f "$pkgfile" "$OUT/"
-    as_root pacman -U --noconfirm --overwrite '*' "$pkgfile"
-done
-
-# ── nidara itself (the desktop package) ───────────────────────────────────────
+# ── nidara (the desktop package, and the only one) ────────────────────────────
 # Built from the nidara-desktop release tag pinned in pins.env (NIDARA_REF),
 # with the PKGBUILD that ships INSIDE that tag (packaging/nidara/) — the recipe
 # travels with the release, so it can never drift from the tree it packages,
-# and nothing about nidara's layout is committed in this repo. Built LAST on
-# purpose: its build (ags bundle ×3) needs the whole Astal/AGS stack, which the
-# loop above just installed into this host. The downloaded tarball is placed
+# and nothing about nidara's layout is committed in this repo. Its build needs
+# only what its own makedepends declare — the toolchain step installs exactly
+# those (scripts/build-deps.sh). The downloaded tarball is placed
 # under the exact name the PKGBUILD's source= expects, so makepkg uses it
 # instead of re-downloading. Not pacman -U'd: nothing later needs the DE
 # installed here. Empty NIDARA_REF skips (releases predating the packaging
@@ -116,7 +87,7 @@ if [ -n "${NIDARA_REF:-}" ]; then
     cp -f "$pkgfile" "$OUT/"
 fi
 
-# Sign each package with a detached .sig published next to it — that's what
+# Sign the package with a detached .sig published next to it — that's what
 # pacman (≥6.1) downloads and verifies; repo-add no longer embeds signatures
 # in the db. Signing before repo-add keeps the option open either way.
 if [ -n "${GPGKEY:-}" ]; then

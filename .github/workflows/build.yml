@@ -1,25 +1,23 @@
 name: build-repo
 
-# Build every dependency package in an Arch container and publish the pacman
+# Build the `nidara` package in an Arch container and publish the pacman
 # repository to GitHub Pages at https://nidara-project.github.io/nidara-repo/$arch
 on:
   push:
     branches: [main]
     paths:
       - pins.env
-      - packages/**
       - scripts/**
       - .github/workflows/build.yml
   # PRs run the SAME build, unsigned and unpublished (see the two `if:`s below).
-  # This is the only place a change to the dependency chain can be proven before
-  # it lands: the build container is the one machine where a missing makedepend
-  # is fatal, and a clean-install VM does not stand in for it (there the deps
-  # arrive with the rest of the system). Costs a full build per PR — worth it for
-  # a repo whose failure mode is "a release dies halfway through".
+  # This is the only place a change to the build can be proven before it lands:
+  # the container is the one machine where a missing makedepend is fatal, and a
+  # clean-install VM does not stand in for it (there the deps arrive with the
+  # rest of the system). Costs a full build per PR — worth it for a repo whose
+  # failure mode is "a release dies halfway through".
   pull_request:
     paths:
       - pins.env
-      - packages/**
       - scripts/**
       - .github/workflows/build.yml
   workflow_dispatch:
@@ -55,9 +53,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Toolchain (derived from the PKGBUILDs)
-        # No hand-written package list: build-deps.sh unions the makedepends of
-        # every packages/*/PKGBUILD with those of the PKGBUILD inside the pinned
-        # nidara-desktop tag. That union used to live here, retyped, and it drifted
+        # No hand-written package list: build-deps.sh reads the makedepends of
+        # the PKGBUILD inside the pinned nidara-desktop tag (until v0.8.0 it
+        # unioned eighteen more). That list used to live here, retyped, and it drifted
         # silently — build-repo.sh runs makepkg with --nodeps (deliberately: the
         # chain pacman -U's each package into this host), so a makedepend declared
         # in a PKGBUILD but missing from this step is simply absent at build time,
