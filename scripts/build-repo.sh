@@ -88,9 +88,24 @@ if [ -n "${NIDARA_REF:-}" ]; then
     fi
     if [ "$(id -u)" -eq 0 ]; then chown -R "$BUILD_USER" "$ndir"; fi
     ( cd "$ndir" && as_builder env SRCDEST="$SRCDEST" makepkg -f --noconfirm --nodeps --skipinteg --noprogressbar )
-    pkgfile="$(ls -t "$ndir"/*.pkg.tar.* 2>/dev/null | head -1)"
-    [ -n "$pkgfile" ] || { echo "[ERR] makepkg produced no nidara package" >&2; exit 1; }
-    cp -f "$pkgfile" "$OUT/"
+    # EVERY package this PKGBUILD produced, not the newest one. From the next
+    # nidara-desktop release on, it is a SPLIT package — `nidara` plus
+    # `nidara-installer`, the live medium's graphical installer (landed
+    # 2026-08-25) — and the old `ls -t | head -1` would have published exactly
+    # one of them, chosen by whichever file makepkg happened to write last.
+    # Written BEFORE that tag exists on purpose: this is the consumer, and a
+    # consumer that learns about the split when the release lands learns it from
+    # a repo that is missing a package. The dir is emptied of
+    # packages above, so a glob here can only match this build's output.
+    _built=0
+    for pkgfile in "$ndir"/*.pkg.tar.*; do
+        [ -e "$pkgfile" ] || continue
+        case "$pkgfile" in *.sig) continue ;; esac
+        cp -f "$pkgfile" "$OUT/"
+        echo "         → $(basename "$pkgfile")"
+        _built=$((_built + 1))
+    done
+    [ "$_built" -gt 0 ] || { echo "[ERR] makepkg produced no nidara package" >&2; exit 1; }
 fi
 
 # ── nidara-release (the product's identity) ───────────────────────────────────
