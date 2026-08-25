@@ -1,12 +1,13 @@
 # nidara-repo
 
 A small **pacman binary repository** for [Nidara](https://github.com/nidara-project/nidara-desktop),
-GPG-signed, holding two packages:
+GPG-signed, holding three packages:
 
 | Package | What it is |
 |---|---|
 | **`nidara`** | The desktop itself, packaged from each release tag. |
 | **`nidara-apps`** | A metapackage — no files, only dependencies — carrying the **curated application set**: what makes a freshly installed machine usable, as opposed to what the desktop needs to run. |
+| **`nidara-release`** | One file, `/etc/os-release`: the **product's** name and version. Built from a [nidara-iso](https://github.com/nidara-project/nidara-iso) tag, because the number in it is the product's and is declared there — a different number from the desktop's, and neither derives from the other. Installing it is what makes a machine call itself Nidara, so only the ISO's installer asks for it: `install.sh` runs on an Arch somebody already uses and must not rename their operating system. |
 
 Without this repo, Nidara's installer builds the desktop on every machine (minutes
 per install or update). With it, it installs in seconds like any other package.
@@ -17,6 +18,13 @@ per install or update). With it, it installs in seconds like any other package.
 > (`packaging/nidara/` in nidara-desktop), so the recipe can never drift from the
 > tree it packages — this repo commits nothing about Nidara's layout.
 >
+> `nidara-release` is built the same way, from the nidara-iso tag pinned in the
+> same file (`NIDARA_ISO_REF`), and gated the same way: the tag, the repo's
+> `VERSION` and the PKGBUILD's `pkgver` must agree or the build refuses. That
+> gate matters more there than anywhere else, because that package's only content
+> IS its version. **It is not published yet** — nidara-iso has never been tagged,
+> so the pin is empty and the step skips.
+>
 > `nidara-apps` is the exception, and deliberately so: its
 > [PKGBUILD lives here](packages/nidara-apps/PKGBUILD). The app set has to be
 > changeable without cutting a desktop release, and a desktop release must not be
@@ -26,13 +34,17 @@ per install or update). With it, it installs in seconds like any other package.
 ### Who installs which
 
 ```
-install.sh    → nidara               never nidara-apps: it runs on an Arch
-                                     someone already uses, with their own
-                                     apps already chosen
+install.sh    → nidara               never nidara-apps, never nidara-release: it
+                                     runs on an Arch someone already uses, with
+                                     their own apps chosen and their own OS name
 the ISO       → nidara + nidara-apps + the medium's own kernel, firmware and
                                      installer tools (which never reach the
-                                     installed system)
-the installer → nidara + nidara-apps what lands on the disk
+                                     installed system). NOT nidara-release: the
+                                     live medium keeps its own "(live)" file
+the installer → nidara + nidara-apps what lands on the disk. nidara-release needs
+              + nidara-release       `--overwrite /etc/os-release` the first time
+                                     (systemd's tmpfiles leaves a symlink there
+                                     that no package owns)
 anyone else   → pacman -S nidara-apps
 ```
 

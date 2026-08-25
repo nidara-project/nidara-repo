@@ -4,9 +4,13 @@
 #
 # It used to build eighteen dependency packages first (Astal, ags,
 # appmenu-glib-translator), each `pacman -U`'d into the build host so the next
-# could find it. Nidara v0.8.0 uses none of them, so this builds two of its own:
-# `nidara`, the desktop, from the pinned release tag; and `nidara-apps`, the
+# could find it. Nidara v0.8.0 uses none of them, so this builds three of its own:
+# `nidara`, the desktop, from the pinned release tag; `nidara-release`, the
+# product's identity, from the pinned nidara-iso tag; and `nidara-apps`, the
 # metapackage carrying the curated application set, from a PKGBUILD committed here.
+#
+# Two pins, because the two versions are independent: the desktop's is cut by
+# nidara-desktop and the product's by nidara-iso (see nidara-iso/PRODUCT.md).
 #
 # makepkg refuses to run as root, so when root we drop to $BUILD_USER.
 #
@@ -87,6 +91,51 @@ if [ -n "${NIDARA_REF:-}" ]; then
     pkgfile="$(ls -t "$ndir"/*.pkg.tar.* 2>/dev/null | head -1)"
     [ -n "$pkgfile" ] || { echo "[ERR] makepkg produced no nidara package" >&2; exit 1; }
     cp -f "$pkgfile" "$OUT/"
+fi
+
+# ── nidara-release (the product's identity) ───────────────────────────────────
+# One file — /etc/os-release — carrying the PRODUCT's version, which is a
+# different number from the desktop's and derives from nothing (nidara-iso's
+# PRODUCT.md). Same shape as `nidara` above and for the same reason: the recipe
+# travels inside the tag it belongs to, so this repo commits nothing about
+# nidara-iso's layout, and cutting a product version IS tagging that repo and
+# moving the pin here.
+#
+# It is fetched from nidara-iso, not nidara-desktop, because renaming somebody's
+# operating system is the product's act and not the desktop's — `install.sh` runs
+# on an Arch someone already uses and must never do it.
+#
+# Empty NIDARA_ISO_REF skips: until the first nidara-iso tag exists there is
+# nothing to fetch, and a pin ahead of the tag would fail the build.
+if [ -n "${NIDARA_ISO_REF:-}" ]; then
+    echo "──────> building nidara-release ($NIDARA_ISO_REF)"
+    iver="${NIDARA_ISO_REF#v}"
+    idir="$HERE/.iso-build"
+    isotar="$idir/nidara-iso-$iver.tar.gz"
+    mkdir -p "$idir"
+    rm -rf "$idir/nidara-iso-$iver" "$idir/src" "$idir/pkg"
+    rm -f "$idir"/*.pkg.tar.*
+    [ -s "$isotar" ] || curl -fsSL \
+        "https://github.com/nidara-project/nidara-iso/archive/refs/tags/$NIDARA_ISO_REF.tar.gz" \
+        -o "$isotar"
+    tar -xzf "$isotar" -C "$idir" \
+        "nidara-iso-$iver/packages/nidara-release/PKGBUILD" \
+        "nidara-iso-$iver/VERSION"
+    cp "$idir/nidara-iso-$iver/packages/nidara-release/PKGBUILD" "$idir/"
+    # Same lockstep gate as nidara's, and it matters more here: this package's
+    # only content IS its version. A pkgver that disagrees with the tag would
+    # publish a machine-readable lie about which product the system is running.
+    _relver="$(grep '^pkgver=' "$idir/PKGBUILD" | head -1 | cut -d= -f2)"
+    _isover="$(tr -d '[:space:]' < "$idir/nidara-iso-$iver/VERSION")"
+    if [ "$_relver" != "$iver" ] || [ "$_isover" != "$iver" ]; then
+        echo "[ERR] lockstep violation: tag=$iver VERSION=$_isover pkgver=$_relver" >&2
+        exit 1
+    fi
+    if [ "$(id -u)" -eq 0 ]; then chown -R "$BUILD_USER" "$idir"; fi
+    ( cd "$idir" && as_builder env SRCDEST="$SRCDEST" makepkg -f --noconfirm --nodeps --skipinteg --noprogressbar )
+    relfile="$(ls -t "$idir"/*.pkg.tar.* 2>/dev/null | head -1)"
+    [ -n "$relfile" ] || { echo "[ERR] makepkg produced no nidara-release package" >&2; exit 1; }
+    cp -f "$relfile" "$OUT/"
 fi
 
 # ── nidara-apps (the curated application set) ─────────────────────────────────
