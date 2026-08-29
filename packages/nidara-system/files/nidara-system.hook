@@ -1,0 +1,19 @@
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Target = etc/mkinitcpio.conf.d/nidara.conf
+Target = etc/modprobe.d/nidara-nowatchdog.conf
+
+[Action]
+Description = Nidara: rebuilding the initramfs for the boot splash...
+When = PostTransaction
+# `command -v` first, and it is not defensive padding: mkinitcpio is not a
+# certainty on Arch. dracut and booster are both packaged and both used, and a
+# machine running one of them has no /usr/bin/mkinitcpio at all — a hook that
+# assumed otherwise would turn every transaction on that machine into a red
+# error about a file it does not have and does not want. `|| true` because a
+# failed regeneration must not fail somebody's `pacman -Syu`; the splash is
+# cosmetic and the transaction is not.
+Exec = /bin/sh -c 'command -v mkinitcpio >/dev/null 2>&1 && mkinitcpio -P || true'
