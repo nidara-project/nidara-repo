@@ -1,12 +1,21 @@
 name: build-repo
 
-# Build the `nidara` package in an Arch container and publish the pacman
+# Build the `nidara` packages in an Arch container and publish the pacman
 # repository to GitHub Pages at https://nidara-project.github.io/nidara-repo/$arch
+#
+# ⚠️ `packages/**` is in both filters, and it was MISSING until 2026-08-30. The
+# three PKGBUILDs committed here are as much an input to the build as pins.env
+# is, and the omission had never fired only because every change to them so far
+# happened to touch scripts/ in the same commit — the one that added the build
+# block for the package it was adding. The first change that did not (a new file
+# in an existing package) would have merged to main, skipped the build, and left
+# the repository serving the previous version with nothing anywhere saying so.
 on:
   push:
     branches: [main]
     paths:
       - pins.env
+      - packages/**
       - scripts/**
       - .github/workflows/build.yml
   # PRs run the SAME build, unsigned and unpublished (see the two `if:`s below).
@@ -18,6 +27,7 @@ on:
   pull_request:
     paths:
       - pins.env
+      - packages/**
       - scripts/**
       - .github/workflows/build.yml
   workflow_dispatch:
