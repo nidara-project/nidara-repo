@@ -1,0 +1,113 @@
+# Maintainer: Nidara Project <https://github.com/nidara-project>
+#
+# nidara-release — the product's identity: /etc/os-release.
+#
+# ─── WHY THIS IS A PACKAGE AND NOT A LINE IN THE INSTALLER ───────────────────
+# A name written by an installer is written once, on the machines that happened
+# to be installed that week, and there is no route back to them. This travels by
+# `pacman -Syu` instead — which matters less now than it did when this package
+# carried a version, and still matters: every field below (the support URLs, the
+# ANSI colour, the logo) is a thing we may want to correct on machines that are
+# already out there.
+#
+# It is also why the desktop does NOT ship this. `install.sh` puts Nidara Desktop
+# on an Arch somebody already uses, and it must not rename their operating
+# system — on that machine About correctly reads "Arch Linux" for the OS and
+# "Nidara Desktop" for the environment. Renaming the OS is the PRODUCT's act, so
+# nothing depends on this package: the ISO and the installer name it explicitly,
+# which is exactly the list of paths that are entitled to.
+#
+# ─── WHY IT LIVES IN nidara-repo AND NOT IN nidara-iso (moved 2026-08-30) ─────
+# It began in nidara-iso, and the reason was the version: `/etc/os-release` said
+# `VERSION=0.1.0`, that number WAS the product's, and the only honest way to keep
+# it from drifting was to make cutting a product version mean tagging the image
+# repo. That coupling bought a lockstep gate in build-repo.sh and a second pin
+# (`NIDARA_ISO_REF`) in pins.env.
+#
+# The version is gone (nidara-iso/PRODUCT.md, "The machine is rolling, the image
+# has a date"), and the coupling went with it: nidara-iso is no longer tagged at
+# all, so a package fetched from its tags could no longer be published. What is
+# left is the rule `nidara-apps` set and `nidara-system` confirmed — **this repo
+# holds the packages whose content must change without cutting a release of
+# something else**. Fixing a support URL must not require building a 2 GiB image,
+# for the same reason a boot default and the app list must not.
+#
+# ⚠️ It stays SEPARATE from `nidara-system`, which is a different question from
+# which repo it sits in, and the answer is bootstrap order: this is what must
+# exist BEFORE anything Nidara can be installed (the name, and where Nidara comes
+# from), with zero dependencies by obligation; `nidara-system` is what Nidara
+# changes ONCE installed, with the dependencies its policy needs. A machine's
+# name must not hang off `plymouth` resolving, and uninstalling a boot policy
+# that broke your boot must not also un-name your operating system. Ubuntu and
+# Fedora split them the same way, and somebody who knows Linux looks for
+# `nidara-release`.
+#
+# ─── /etc/os-release IS UNOWNED, AND STILL NOT FREE (both MEASURED 2026-08-25) ─
+# 1. No package owns it. `filesystem` ships only /usr/lib/os-release; systemd
+#    reads /etc first when it is there. So we can own it outright — no forked
+#    `filesystem` (Manjaro's road) and no pacman hook (EndeavourOS's, which
+#    overwrites a file `filesystem` DOES own and leaves `pacman -Qkk filesystem`
+#    dirty forever).
+# 2. But the path is occupied: systemd's /usr/lib/tmpfiles.d/etc.conf drops a
+#    symlink there, so on a machine that has booted, installing this hits
+#    "error: nidara-release: /etc/os-release exists in filesystem" — pacman's
+#    check for an existing UNOWNED path, and it runs before any scriptlet, so no
+#    install= hook can clear the way. The installer therefore passes
+#    `--overwrite /etc/os-release`, once, for that one path.
+#    (Verified by `pacman -U` into a scratch root under fakeroot: with the
+#    symlink present it fails; with the path empty it installs. Both arms run.)
+# 3. Once the real file is in place it STAYS: that tmpfiles line is `L`, not
+#    `L+` — create-if-absent, not force. (`/etc/mtab`, two lines below it, is the
+#    `L+` that would have clobbered.) Verified with `systemd-tmpfiles --root=` on
+#    a tree holding the real file, against a control where it recreated the link.
+#
+# No backup=() on purpose. The original reason was that a modified file would
+# freeze the product's version; the version is gone and the reason survives it
+# unchanged — this file is IDENTITY, not configuration, and the update must win.
+# A machine that has edited its own name is not a machine we can answer questions
+# about.
+#
+# ⚠️ `pkgver` tracks NOTHING and is not expected to move. It tracked the product's
+# version, which no longer exists; it is now a plain counter, the same as
+# `nidara-apps`'. TO CHANGE THIS PACKAGE: edit below and bump `pkgver` — without
+# the bump, pacman sees no update and no machine ever gets the change.
+pkgname=nidara-release
+pkgver=1
+pkgrel=1
+pkgdesc="Nidara — the operating system's identity (/etc/os-release)"
+arch=(any)
+url="https://github.com/nidara-project/nidara-iso"
+license=(GPL-3.0-only)
+
+package() {
+    # ID_LIKE="arch" is the lineage, stated in the field that exists for stating
+    # it: scripts branch on it, AUR helpers and `pacman`-aware tools read it, and
+    # it is what makes "based on Arch Linux" a machine-readable claim rather than
+    # marketing. Rebrand, don't appropriate.
+    #
+    # ⚠️ NO `VERSION` and NO `VERSION_ID`, and their absence is the decision —
+    # `BUILD_ID=rolling` is the whole answer to "what version is this machine?".
+    # The defect that removed them: this package carries no `backup=`, so every
+    # machine that had ever run `-Syu` reported the newest number published, and
+    # a field whose value is identical across the entire fleet informs nobody.
+    # Ubuntu's `VERSION_ID` works because it does NOT change — it names the series
+    # that machine follows, and Nidara has no series. The full argument is in
+    # nidara-iso/PRODUCT.md, "The machine is rolling, the image has a date".
+    #
+    # Consumers that want a number have three real ones — the versions of
+    # `nidara-desktop`, `nidara-system` and `nidara-apps` — and each says
+    # something true about a part that actually changes.
+    install -Dm644 /dev/stdin "$pkgdir/etc/os-release" <<EOF
+NAME="Nidara"
+PRETTY_NAME="Nidara"
+ID=nidara
+ID_LIKE="arch"
+BUILD_ID=rolling
+ANSI_COLOR="0;36"
+HOME_URL="https://github.com/nidara-project"
+DOCUMENTATION_URL="https://github.com/nidara-project/nidara-desktop"
+SUPPORT_URL="https://github.com/nidara-project/nidara-desktop/issues"
+BUG_REPORT_URL="https://github.com/nidara-project/nidara-desktop/issues"
+LOGO=nidara
+EOF
+}
