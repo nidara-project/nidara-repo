@@ -9,7 +9,7 @@ GPG-signed, holding five packages:
 | **`nidara-installer`** | The graphical installer, built from the same tag as a split package and shipped only on the live medium. A system somebody is using must not carry a program whose job is to erase a disk. |
 | **`nidara-apps`** | A metapackage — no files, only dependencies — carrying the **curated application set**: what makes a freshly installed machine usable, as opposed to what the desktop needs to run. |
 | **`nidara-system`** | What the product changes about **Arch itself**: the boot splash, the mkinitcpio drop-in, the system defaults. Not the desktop's business — an Arch user installing only the desktop would not want a Plymouth theme. |
-| **`nidara-release`** | One file, `/etc/os-release`: the **product's name**. Installing it is what makes a machine call itself Nidara, so only the ISO's installer asks for it — `install.sh` runs on an Arch somebody already uses and must not rename their operating system. |
+| **`nidara-release`** | Two files: `/etc/os-release`, the **product's name**, and `/etc/pacman.d/nidara-mirrorlist`, **this repository's address**. Installing it is what makes a machine call itself Nidara and know where Nidara comes from, so only the ISO's installer asks for it — `install.sh` runs on an Arch somebody already uses and must not rename their operating system. |
 
 Without this repo, Nidara's installer builds the desktop on every machine (minutes
 per install or update). With it, it installs in seconds like any other package.
@@ -72,6 +72,12 @@ Add this to the **end** of `/etc/pacman.conf`:
 SigLevel = Required DatabaseOptional
 Server = https://nidara-project.github.io/nidara-repo/$arch
 ```
+
+> On a machine installed from a Nidara image that line is an
+> `Include = /etc/pacman.d/nidara-mirrorlist` instead, and the file belongs to
+> `nidara-release` — so if this repository ever moves, an ordinary `pacman -Syu`
+> carries the new address. A `Server =` written by hand is yours to maintain;
+> nothing can correct it for you.
 
 Then:
 

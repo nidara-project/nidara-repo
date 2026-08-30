@@ -72,12 +72,26 @@
 # `nidara-apps`'. TO CHANGE THIS PACKAGE: edit below and bump `pkgver` — without
 # the bump, pacman sees no update and no machine ever gets the change.
 pkgname=nidara-release
-pkgver=1
+pkgver=2
 pkgrel=1
-pkgdesc="Nidara — the operating system's identity (/etc/os-release)"
+pkgdesc="Nidara — the operating system's identity and where Nidara comes from"
 arch=(any)
 url="https://github.com/nidara-project/nidara-iso"
 license=(GPL-3.0-only)
+
+# ⚠️ ONE of this package's two files is backed up, and the asymmetry is the
+# decision. `/etc/os-release` is IDENTITY: a machine that has renamed itself is
+# not one we can answer questions about, so the update must win and there is no
+# backup= for it. `/etc/pacman.d/nidara-mirrorlist` is CONFIGURATION: pointing
+# pacman at a local mirror or a proxy is a legitimate thing for an admin to do,
+# and taking that away on every upgrade would be hostile.
+#
+# backup= does not weaken what this file is here for. An UNMODIFIED file is still
+# replaced by the upgrade — which is the whole point, and the reason the address
+# moved out of pacman.conf — while a modified one is kept with a .pacnew beside
+# it. The people who lose the new address are exactly the people who chose their
+# own.
+backup=(etc/pacman.d/nidara-mirrorlist)
 
 package() {
     # ID_LIKE="arch" is the lineage, stated in the field that exists for stating
@@ -109,5 +123,51 @@ DOCUMENTATION_URL="https://github.com/nidara-project/nidara-desktop"
 SUPPORT_URL="https://github.com/nidara-project/nidara-desktop/issues"
 BUG_REPORT_URL="https://github.com/nidara-project/nidara-desktop/issues"
 LOGO=nidara
+EOF
+
+    # ── where Nidara comes from ───────────────────────────────────────────────
+    # The address of this repository, in a file a package owns, so that it can be
+    # CORRECTED. It used to live as a bare `Server =` line inside
+    # /etc/pacman.conf — a file no package owns and every admin edits — which
+    # made the address something only a NEW INSTALL could learn. If this
+    # repository ever moves, every machine already out there is stranded on a
+    # 404, and the only fix is a sentence in release notes asking people to edit
+    # a config file by hand.
+    #
+    # This is the same shape as Arch's own `pacman-mirrorlist`, and the reason
+    # `Include = /etc/pacman.d/mirrorlist` is what every Arch machine has instead
+    # of a literal server line.
+    #
+    # ⚠️ QUOTED heredoc, unlike the one above. `$arch` must reach the file
+    # LITERALLY — pacman expands it, we must not. An unquoted heredoc here would
+    # interpolate this PKGBUILD's own `arch=(any)` and publish
+    # `.../nidara-repo/any`, which 404s on every machine that installs it. The
+    # os-release block above is unquoted on purpose, and used to interpolate
+    # $pkgver; these two must not be edited into each other's shape.
+    #
+    # ⚠️ BOOTSTRAP: a pacman.conf whose Include names a file that is not there is
+    # not a degraded repo, it is a hard parse error on EVERY pacman invocation —
+    # `pacman-key` included, which is how the installer trusts this repo's key in
+    # the first place. So the medium ships this file in its own airootfs and the
+    # installer writes it to the target BEFORE its first pacman call; this
+    # package then adopts it, which is what `--overwrite` is doing on the command
+    # that installs this package. (Measured: `pacman-conf` exits 1 with
+    # "config file ... could not be read" on a missing Include.)
+    install -Dm644 /dev/stdin "$pkgdir/etc/pacman.d/nidara-mirrorlist" <<'EOF'
+#
+# /etc/pacman.d/nidara-mirrorlist
+#
+# The Nidara package repository. Referenced from /etc/pacman.conf as:
+#
+#     [nidara]
+#     SigLevel = Required DatabaseOptional
+#     Include  = /etc/pacman.d/nidara-mirrorlist
+#
+# This file belongs to the `nidara-release` package, so a corrected address
+# reaches machines that are already installed. Edit it if you run a local mirror
+# — your version is preserved across upgrades and the new one arrives as
+# `nidara-mirrorlist.pacnew`.
+#
+Server = https://nidara-project.github.io/nidara-repo/$arch
 EOF
 }
