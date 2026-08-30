@@ -4,7 +4,6 @@ Operation = Install
 Operation = Upgrade
 Operation = Remove
 Target = etc/mkinitcpio.conf.d/nidara.conf
-Target = etc/modprobe.d/nidara-nowatchdog.conf
 
 [Action]
 Description = Nidara: rebuilding the initramfs for the boot splash...

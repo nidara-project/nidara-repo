@@ -38,11 +38,20 @@
 # ─── WHAT IS DECIDED HERE, AND WHAT IS MERELY INHERITED ──────────────────────
 # The Plymouth theme is a decision: Nidara boots as itself.
 #
-# ⚠️ The watchdog files are NOT. They arrived with nidara-desktop#284 to silence
-# a shutdown warning in a test VM, and they are carried across unchanged so that
-# moving policy into a package changes no behaviour on the way. Disabling a
-# hardware watchdog on real hardware removes what recovers a hung machine, and
-# nobody has ratified that as a product default. Each file says so, in the file.
+# ⚠️ The watchdog setting is NOT. It arrived with nidara-desktop#284 to silence a
+# shutdown warning seen in a test VM, and nobody has ratified it as a product
+# default. The file says so, in the file.
+#
+# It also came in FIVE times larger than it needed to be, and reading systemd's
+# documentation rather than the pull request cut it to one line. Three of the
+# four keys were already the default or a deprecated alias — they changed
+# nothing while implying we were doing three more things than we were — and the
+# `/etc/modprobe.d` blacklist that came with them is gone entirely: it takes the
+# watchdog device away from every machine, permanently, to silence a message
+# that only appears because systemd armed it. Do not arm it, and there is
+# nothing to silence. (The claim this header used to make — that disabling it
+# "removes what recovers a hung machine" — was wrong: Arch ships
+# `RuntimeWatchdogSec=0`, so nothing is being recovered today.)
 #
 # TO CHANGE ANY POLICY: edit below and BUMP pkgver. Without the bump the repo
 # republishes the same version and no existing install ever sees the change.
@@ -86,9 +95,7 @@ package() {
     install -Dm644 "$startdir/files/mkinitcpio-nidara.conf" \
         "$pkgdir/etc/mkinitcpio.conf.d/nidara.conf"
 
-    # System defaults (see the inherited-not-decided warning above).
-    install -Dm644 "$startdir/files/nidara-nowatchdog.conf" \
-        "$pkgdir/etc/modprobe.d/nidara-nowatchdog.conf"
+    # System defaults (see the inherited-not-ratified warning above).
     install -Dm644 "$startdir/files/nidara-watchdog.conf" \
         "$pkgdir/etc/systemd/system.conf.d/nidara-watchdog.conf"
 
