@@ -6,5 +6,5 @@
 *.log
 /.nidara-build/
 /.apps-build/
-/.iso-build/
+/.release-build/
 /.system-build/

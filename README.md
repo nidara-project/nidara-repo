@@ -1,50 +1,58 @@
 # nidara-repo
 
 A small **pacman binary repository** for [Nidara](https://github.com/nidara-project/nidara-desktop),
-GPG-signed, holding three packages:
+GPG-signed, holding five packages:
 
 | Package | What it is |
 |---|---|
-| **`nidara`** | The desktop itself, packaged from each release tag. |
+| **`nidara-desktop`** | The desktop itself, packaged from each release tag. Called `nidara` until v0.10.0; the bare name is now deliberately unclaimed, for a metapackage nobody has decided on yet. |
+| **`nidara-installer`** | The graphical installer, built from the same tag as a split package and shipped only on the live medium. A system somebody is using must not carry a program whose job is to erase a disk. |
 | **`nidara-apps`** | A metapackage — no files, only dependencies — carrying the **curated application set**: what makes a freshly installed machine usable, as opposed to what the desktop needs to run. |
-| **`nidara-release`** | One file, `/etc/os-release`: the **product's** name and version. Built from a [nidara-iso](https://github.com/nidara-project/nidara-iso) tag, because the number in it is the product's and is declared there — a different number from the desktop's, and neither derives from the other. Installing it is what makes a machine call itself Nidara, so only the ISO's installer asks for it: `install.sh` runs on an Arch somebody already uses and must not rename their operating system. |
+| **`nidara-system`** | What the product changes about **Arch itself**: the boot splash, the mkinitcpio drop-in, the system defaults. Not the desktop's business — an Arch user installing only the desktop would not want a Plymouth theme. |
+| **`nidara-release`** | One file, `/etc/os-release`: the **product's name**. Installing it is what makes a machine call itself Nidara, so only the ISO's installer asks for it — `install.sh` runs on an Arch somebody already uses and must not rename their operating system. |
 
 Without this repo, Nidara's installer builds the desktop on every machine (minutes
 per install or update). With it, it installs in seconds like any other package.
 
-> `nidara` is built in the open by the
+> `nidara-desktop` and `nidara-installer` are built in the open by the
 > [`build-repo` workflow](.github/workflows/build.yml) with the PKGBUILD that ships
 > **inside** the release tag pinned in [`pins.env`](pins.env)
 > (`packaging/nidara/` in nidara-desktop), so the recipe can never drift from the
 > tree it packages — this repo commits nothing about Nidara's layout.
 >
-> `nidara-release` is built the same way, from the nidara-iso tag pinned in the
-> same file (`NIDARA_ISO_REF`), and gated the same way: the tag, the repo's
-> `VERSION` and the PKGBUILD's `pkgver` must agree or the build refuses. That
-> gate matters more there than anywhere else, because that package's only content
-> IS its version. **It is not published yet** — nidara-iso has never been tagged,
-> so the pin is empty and the step skips.
+> The other three have **no upstream and no tag**, and their PKGBUILDs live here:
+> [`packages/`](packages). That is the rule rather than an exception — *this repo
+> holds the packages whose content must change without cutting a release of
+> something else.* The app set must not force a desktop release, a boot default
+> must not require building a 2 GiB image, and a corrected support URL must not
+> either.
 >
-> `nidara-apps` is the exception, and deliberately so: its
-> [PKGBUILD lives here](packages/nidara-apps/PKGBUILD). The app set has to be
-> changeable without cutting a desktop release, and a desktop release must not be
-> forced to re-decide the app list. **Its contents are undecided** — it currently
-> holds exactly what the ISO already carried and nothing more.
+> ⚠️ `nidara-release` moved here from nidara-iso on **2026-08-30**, along with a
+> second pin (`NIDARA_ISO_REF`) and a lockstep gate that both went away with it.
+> Both existed for one reason: `/etc/os-release` used to carry the product's
+> VERSION, that number had to lock to the image repo's tag, and so the package had
+> to be fetched from one. [The product no longer has a
+> version](https://github.com/nidara-project/nidara-iso/blob/main/PRODUCT.md) —
+> the machine is rolling and images carry a date — and nidara-iso is no longer
+> tagged at all, which would have left this package unpublishable where it was.
 
 ### Who installs which
 
 ```
-install.sh    → nidara               never nidara-apps, never nidara-release: it
-                                     runs on an Arch someone already uses, with
-                                     their own apps chosen and their own OS name
-the ISO       → nidara + nidara-apps + the medium's own kernel, firmware and
-                                     installer tools (which never reach the
-                                     installed system). NOT nidara-release: the
-                                     live medium keeps its own "(live)" file
-the installer → nidara + nidara-apps what lands on the disk. nidara-release needs
-              + nidara-release       `--overwrite /etc/os-release` the first time
-                                     (systemd's tmpfiles leaves a symlink there
-                                     that no package owns)
+install.sh    → nidara-desktop       never the other four: it runs on an Arch
+                                     someone already uses, with their own apps
+                                     chosen, their own boot policy and their own
+                                     OS name
+the ISO       → nidara-desktop       + nidara-installer and the medium's own
+              + nidara-apps          kernel, firmware and install tools (which
+                                     never reach the installed system). NOT
+                                     nidara-release: the live medium keeps its
+                                     own "(live)" file. NOT nidara-system: the
+                                     medium's boot is mkarchiso's, not ours
+the installer → nidara-desktop       what lands on the disk. nidara-release needs
+              + nidara-apps          `--overwrite /etc/os-release` the first time
+              + nidara-system        (systemd's tmpfiles leaves a symlink there
+              + nidara-release       that no package owns)
 anyone else   → pacman -S nidara-apps
 ```
 
@@ -69,7 +77,7 @@ Then:
 
 ```bash
 sudo pacman -Sy
-sudo pacman -S nidara             # the whole desktop
+sudo pacman -S nidara-desktop     # the whole desktop
 nidara-setup                      # one-time setup: greeter, services, user config
 ```
 
@@ -94,9 +102,11 @@ signed) database is verified when the signature is present.
 
 | Package | Upstream | Pinned by |
 |---|---|---|
-| `nidara` | github nidara-project/nidara-desktop (release tags) | `NIDARA_REF` |
+| `nidara-desktop` | github nidara-project/nidara-desktop (release tags) | `NIDARA_REF` |
+| `nidara-installer` | the same tag — one PKGBUILD, a split package | `NIDARA_REF` |
 
-That is the whole table, and it was eighteen rows longer until Nidara **v0.8.0**.
+That is the whole table — the other three have no upstream to pin — and it was
+eighteen rows longer until Nidara **v0.8.0**.
 The [Astal](https://github.com/Aylur/astal) service libraries, the
 [`ags`](https://github.com/Aylur/ags) CLI and `appmenu-glib-translator` were built
 and served here because Nidara needed them and Arch does not carry them. Nidara
@@ -111,7 +121,7 @@ already have them keep them — pacman never removes a package merely because it
 left a repo — and Nidara's `nidara-setup` prints the exact `pacman -Rns` line to
 clear them, without ever running it for you.
 
-`nidara`'s PKGBUILD is deliberately **not** committed here: `build-repo.sh` fetches
+`nidara-desktop`'s PKGBUILD is deliberately **not** committed here: `build-repo.sh` fetches
 the `NIDARA_REF` tag's tarball and builds with the PKGBUILD found inside it,
 refusing to publish if the tag, its `VERSION` file and the PKGBUILD's `pkgver`
 disagree.
