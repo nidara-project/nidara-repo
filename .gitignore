@@ -5,3 +5,6 @@
 *.pkg.tar.*
 *.log
 /.nidara-build/
+/.apps-build/
+/.iso-build/
+/.system-build/

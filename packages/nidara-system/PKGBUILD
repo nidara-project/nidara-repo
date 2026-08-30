@@ -1,0 +1,107 @@
+# Maintainer: Nidara Project <https://github.com/nidara-project>
+#
+# nidara-system — what Nidara changes about Arch itself.
+#
+# ─── THE LAYER THIS IS ───────────────────────────────────────────────────────
+# `nidara` answers "what does the desktop need to RUN". `nidara-apps` answers
+# "what makes a fresh machine USABLE". This one answers the third question,
+# which had no owner until 2026-08-30: "what does Nidara change about ARCH".
+#
+# The boundary is one line, and it is the whole reason this package exists:
+#
+#     if an Arch user installing ONLY the desktop would not want it,
+#     it does not go in `nidara`.
+#
+# GNOME Shell does not depend on Plymouth; Ubuntu ships a Plymouth theme. The
+# boot splash below spent four days inside the desktop's own package, where it
+# would have repainted the boot of every Arch user who ran install.sh — a
+# machine install.sh is explicitly required to treat as theirs. The full model
+# is nidara-iso/PRODUCT.md, "Four layers, and the third one had no owner".
+#
+# ─── WHY IT LIVES IN nidara-repo AND NOT IN nidara-iso ───────────────────────
+# PRODUCT.md first said nidara-iso, beside `nidara-release`. That was written
+# before two things were known, and both of them point here instead:
+#
+#   1. `nidara-release` lives there because its version WAS the product's, so it
+#      had to be locked to the image's tag. That version is being removed — the
+#      machine is rolling and images carry a date — so the coupling that put it
+#      there does not apply to anything else.
+#   2. nidara-repo's build fetches nidara-iso by TAG (`NIDARA_ISO_REF`), and the
+#      product's tagging scheme is exactly what is in flux. Pinning system
+#      policy to a scheme mid-change buys a second problem for free.
+#
+# What settles it is the rule `nidara-apps` already established next door: the
+# packages that live in nidara-repo are the ones whose CONTENT must be able to
+# change without cutting a release of something else. A boot default must not
+# require building a 2 GiB image, for the same reason the browser must not.
+#
+# ─── WHAT IS DECIDED HERE, AND WHAT IS MERELY INHERITED ──────────────────────
+# The Plymouth theme is a decision: Nidara boots as itself.
+#
+# ⚠️ The watchdog setting is NOT. It arrived with nidara-desktop#284 to silence a
+# shutdown warning seen in a test VM, and nobody has ratified it as a product
+# default. The file says so, in the file.
+#
+# It also came in FIVE times larger than it needed to be, and reading systemd's
+# documentation rather than the pull request cut it to one line. Three of the
+# four keys were already the default or a deprecated alias — they changed
+# nothing while implying we were doing three more things than we were — and the
+# `/etc/modprobe.d` blacklist that came with them is gone entirely: it takes the
+# watchdog device away from every machine, permanently, to silence a message
+# that only appears because systemd armed it. Do not arm it, and there is
+# nothing to silence. (The claim this header used to make — that disabling it
+# "removes what recovers a hung machine" — was wrong: Arch ships
+# `RuntimeWatchdogSec=0`, so nothing is being recovered today.)
+#
+# TO CHANGE ANY POLICY: edit below and BUMP pkgver. Without the bump the repo
+# republishes the same version and no existing install ever sees the change.
+# pkgver is a plain counter on purpose — this package has no upstream, the same
+# way nidara-apps has none.
+pkgname=nidara-system
+pkgver=1
+pkgrel=1
+pkgdesc="Nidara — what the product changes about Arch itself (boot splash, system defaults)"
+arch=(any)
+url="https://github.com/nidara-project/nidara-repo"
+license=(GPL-3.0-only)
+# No source=(): makepkg's source array takes files and URLs, not directories, and
+# the Plymouth theme is 76 of them. So package() reads `files/` out of $startdir,
+# the PKGBUILD's own directory. That is a real constraint on the publisher rather
+# than a detail — `nidara-repo`'s build-repo.sh copies a bare PKGBUILD into a
+# scratch directory for its other packages, and for this one it has to copy the
+# WHOLE directory or $startdir/files does not exist and package() dies. It is
+# written down in build-repo.sh too, next to the code that does it.
+# plymouth supplies both halves this package is useless without: the daemon that
+# draws the splash, and the `plymouth` mkinitcpio hook at
+# /usr/lib/initcpio/{hooks,install}/plymouth that the drop-in below names. A
+# theme without them is a directory nobody reads — which is precisely how this
+# shipped inert for four days when it was in the desktop's package with no
+# dependency at all.
+depends=(plymouth)
+# NOT a dependency of `nidara`, and nothing depends on this. The ISO and the
+# installer name it explicitly, which is exactly the list of paths entitled to
+# change somebody's boot: a machine that got the desktop from install.sh is not
+# on it.
+install=nidara-system.install
+
+package() {
+    # The boot splash.
+    install -d "$pkgdir/usr/share/plymouth/themes/nidara"
+    install -m644 "$startdir"/files/plymouth-theme/* "$pkgdir/usr/share/plymouth/themes/nidara/"
+
+    # The initramfs hook, as a drop-in that EDITS the machine's HOOKS rather
+    # than declaring them. The reasoning is in the file, and it is the whole
+    # difference between this and what archiso does.
+    install -Dm644 "$startdir/files/mkinitcpio-nidara.conf" \
+        "$pkgdir/etc/mkinitcpio.conf.d/nidara.conf"
+
+    # System defaults (see the inherited-not-ratified warning above).
+    install -Dm644 "$startdir/files/nidara-watchdog.conf" \
+        "$pkgdir/etc/systemd/system.conf.d/nidara-watchdog.conf"
+
+    # Rebuild the initramfs when either of the two files that belong in it
+    # changes. A hook rather than a scriptlet so that pacman coalesces it: an
+    # upgrade touching both files regenerates once.
+    install -Dm644 "$startdir/files/nidara-system.hook" \
+        "$pkgdir/usr/share/libalpm/hooks/90-nidara-system.hook"
+}

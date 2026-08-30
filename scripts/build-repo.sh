@@ -174,6 +174,29 @@ appsfile="$(ls -t "$adir"/*.pkg.tar.* 2>/dev/null | head -1)"
 [ -n "$appsfile" ] || { echo "[ERR] makepkg produced no nidara-apps package" >&2; exit 1; }
 cp -f "$appsfile" "$OUT/"
 
+# ── nidara-system (what the product changes about Arch itself) ────────────────
+# Third layer: not the desktop, not the app set, but the boot splash and the
+# system defaults that make an installed machine Nidara rather than Arch with a
+# shell on it. It lives HERE and not in nidara-iso for the same reason
+# nidara-apps does — its content has to be changeable without cutting a release
+# of something else, and a boot default must not require building a 2 GiB image.
+# The PKGBUILD's own header carries the full argument.
+#
+# ⚠️ Unlike every other package here, this one has FILES, and makepkg's source=()
+# takes files and URLs but not directories — so its package() reads them out of
+# $startdir. That is why this copies the WHOLE package directory and not just
+# the PKGBUILD: with a bare PKGBUILD, $startdir/files does not exist and
+# package() dies on the first `install`.
+echo "──────> building nidara-system"
+sdir="$HERE/.system-build"
+rm -rf "$sdir"; mkdir -p "$sdir"
+cp -r "$HERE/packages/nidara-system/." "$sdir/"
+if [ "$(id -u)" -eq 0 ]; then chown -R "$BUILD_USER" "$sdir"; fi
+( cd "$sdir" && as_builder env SRCDEST="$SRCDEST" makepkg -f --noconfirm --nodeps --skipinteg --noprogressbar )
+sysfile="$(ls -t "$sdir"/*.pkg.tar.* 2>/dev/null | head -1)"
+[ -n "$sysfile" ] || { echo "[ERR] makepkg produced no nidara-system package" >&2; exit 1; }
+cp -f "$sysfile" "$OUT/"
+
 # Sign the package with a detached .sig published next to it — that's what
 # pacman (≥6.1) downloads and verifies; repo-add no longer embeds signatures
 # in the db. Signing before repo-add keeps the option open either way.

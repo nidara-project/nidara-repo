@@ -1,0 +1,40 @@
+# The theme is set with plymouth's own tool rather than by shipping
+# /etc/plymouth/plymouthd.conf, because that path is NOT ours: the `plymouth`
+# package owns it, and as a backup= file, which is the right thing for it to be.
+# Shipping it would be a file conflict; force-overwriting it would take a config
+# file away from the admin it belongs to. `plymouth-set-default-theme` writes
+# `Theme=` into that file, pacman sees a modified backup file and preserves it
+# across plymouth upgrades — which is the behaviour we want and the reason the
+# mechanism exists.
+_set_theme() {
+    if command -v plymouth-set-default-theme >/dev/null 2>&1 \
+       && [ -d /usr/share/plymouth/themes/nidara ]; then
+        plymouth-set-default-theme nidara >/dev/null 2>&1 || true
+    fi
+}
+
+post_install() {
+    _set_theme
+    cat <<'MSG'
+  Nidara system policy installed.
+
+  The boot splash also needs `splash` on the kernel command line. On a machine
+  installed by the Nidara installer that is already there. On any other machine
+  it is yours to add — this package will not edit a bootloader it did not write.
+MSG
+}
+
+post_upgrade() {
+    _set_theme
+}
+
+pre_remove() {
+    # Hand the theme back rather than leaving plymouthd pointing at a directory
+    # that is about to stop existing — that is a boot with no splash and an
+    # error in the log, instead of a boot with the distribution's own default.
+    if command -v plymouth-set-default-theme >/dev/null 2>&1; then
+        if [ "$(plymouth-set-default-theme 2>/dev/null)" = "nidara" ]; then
+            plymouth-set-default-theme -r >/dev/null 2>&1 || true
+        fi
+    fi
+}
