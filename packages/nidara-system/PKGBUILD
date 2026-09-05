@@ -38,6 +38,11 @@
 # ─── WHAT IS DECIDED HERE, AND WHAT IS MERELY INHERITED ──────────────────────
 # The Plymouth theme is a decision: Nidara boots as itself.
 #
+# The persistent journal is a decision too, and a newer one (2026-09-06): Arch's
+# default keeps the log in memory, so a machine that failed before anybody could
+# open a terminal explains nothing after the reboot that follows. The reasoning
+# and the size cap are in the file.
+#
 # ⚠️ The watchdog setting is NOT. It arrived with nidara-desktop#284 to silence a
 # shutdown warning seen in a test VM, and nobody has ratified it as a product
 # default. The file says so, in the file.
@@ -58,7 +63,7 @@
 # pkgver is a plain counter on purpose — this package has no upstream, the same
 # way nidara-apps has none.
 pkgname=nidara-system
-pkgver=1
+pkgver=2
 pkgrel=1
 pkgdesc="Nidara — what the product changes about Arch itself (boot splash, system defaults)"
 arch=(any)
@@ -98,6 +103,12 @@ package() {
     # System defaults (see the inherited-not-ratified warning above).
     install -Dm644 "$startdir/files/nidara-watchdog.conf" \
         "$pkgdir/etc/systemd/system.conf.d/nidara-watchdog.conf"
+
+    # A journal that survives a reboot. Unlike the watchdog above this one IS a
+    # decision, and the file argues it: without it, everything that fails before
+    # somebody can open a terminal leaves no record once they restart.
+    install -Dm644 "$startdir/files/nidara-journal.conf" \
+        "$pkgdir/etc/systemd/journald.conf.d/nidara-journal.conf"
 
     # Rebuild the initramfs when either of the two files that belong in it
     # changes. A hook rather than a scriptlet so that pacman coalesces it: an
