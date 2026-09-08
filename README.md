@@ -159,6 +159,28 @@ bash scripts/build-repo.sh        # builds the package + the repo db into ./x86_
 
 Needs an Arch system with `base-devel`.
 
+### A published filename never changes its bytes
+
+`build-repo.sh` rebuilds every package on every run, and two builds from the same
+sources are never byte-identical — makepkg stamps a build date, records the
+builder's package list, and writes an `.MTREE` of mtimes. Republishing that under
+an unchanged name leaves every warm pacman cache holding a file the database no
+longer describes, which pacman reports as a corrupted package (issue #18).
+
+So before signing, each built package is compared against the one already on
+Pages. `scripts/pkg-fingerprint.sh` is what "the same" means: every file's path,
+mode, type and content, every symlink target, and `.PKGINFO` without its build
+date and packager.
+
+- **Same** → the published file is kept, so caches stay valid.
+- **Different, under a name that is already published** → the build **fails**.
+  An unchanged version means no existing install would ever fetch the change, so
+  the fix is to move the version (`pkgver`/`pkgrel`, or `NIDARA_REF`).
+- **Not published yet** (404) → nothing to compare; it is built and published.
+
+`PUBLISHED_URL` points the comparison somewhere else; `SKIP_REPUBLISH_CHECK=1`
+turns it off for a local build that is not going anywhere.
+
 ## License
 
 Repository tooling: GPL-3.0 (see [`LICENSE`](LICENSE)).
