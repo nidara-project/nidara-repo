@@ -186,6 +186,88 @@ sysfile="$(ls -t "$sdir"/*.pkg.tar.* 2>/dev/null | head -1)"
 [ -n "$sysfile" ] || { echo "[ERR] makepkg produced no nidara-system package" >&2; exit 1; }
 cp -f "$sysfile" "$OUT/"
 
+# ── a published filename must never change its bytes (#18) ────────────────────
+#
+# Every package above is built with `makepkg -f`, unconditionally, on every run.
+# Three of them carry hand-maintained versions that do not move unless somebody
+# moves them, and the other two do not move unless `pins.env` does — so the same
+# run that changes nothing still writes `nidara-apps-1-1-any.pkg.tar.zst` again,
+# with different bytes. Two builds from identical sources are never identical:
+# makepkg stamps a build date, records the builder's whole package list in
+# .BUILDINFO, and writes an .MTREE of mtimes.
+#
+# The db published beside it carries the NEW checksum. Anything holding the old
+# file under that name — a pacman cache on a machine that installs twice, and
+# every ISO build we do — now has a file whose name matches the db and whose
+# checksum does not. pacman calls it corrupted, and it is right: it is not the
+# file the db describes. That is #18, and it broke an ISO build on 2026-09-08 in
+# the middle of a 681-package pacstrap.
+#
+# So the artifact that goes out is the one already out there, whenever the two
+# describe the same installation. `pkg-fingerprint.sh` is what "the same" means:
+# every file's path, mode, type and content, every symlink target, and .PKGINFO
+# without the build date and the packager — the build's own fingerprints wiped
+# off, and nothing else.
+#
+# ⚠️ And when they are NOT the same, this FAILS rather than publishing. A
+# filename whose content changed is the one case that must never reach Pages: an
+# unchanged version means no user's `pacman -Syu` will fetch it, so the change
+# would ship to new installs and be invisible to every existing one. The fix is
+# always to move the version — `pkgver`/`pkgrel` for the three committed
+# packages, `NIDARA_REF` for the two that come from a tag (and if a tag was
+# force-moved under a name that is already published, that is what this caught).
+PUBLISHED_URL="${PUBLISHED_URL:-https://nidara-project.github.io/nidara-repo/x86_64}"
+if [ "${SKIP_REPUBLISH_CHECK:-}" = 1 ]; then
+    echo "──────> SKIPPING the republish check (SKIP_REPUBLISH_CHECK=1)"
+else
+    echo "──────> comparing against what is already published"
+    _pub="$(mktemp -d)"
+    for f in "$OUT"/*.pkg.tar.*; do
+        [[ "$f" == *.sig ]] && continue
+        _name="$(basename "$f")"
+        # ⚠️ No `-f`. With it, curl exits non-zero on a 404 — so a `|| echo …`
+        # fallback lands NEXT TO the code `-w` has already printed and the
+        # variable reads `404failed`, which matches neither branch below. The
+        # ordinary case (a version that just moved, or the first publish ever)
+        # would then be reported as a warning on every package, every run.
+        # Without it, curl exits 0 for any answer the server gave and non-zero
+        # only when it could not ask — which is exactly the distinction here.
+        if ! _code="$(curl -sS -o "$_pub/$_name" -w '%{http_code}' "$PUBLISHED_URL/$_name" 2>/dev/null)"; then
+            _code=000
+        fi
+        case "$_code" in
+            200) ;;
+            404)
+                # The ordinary answer for a version that has just moved, and for
+                # the first publish of anything. Nothing to compare against.
+                continue ;;
+            *)
+                # Pages unreachable, or answering something else. Said OUT LOUD:
+                # a silent skip here looks exactly like a check that passed.
+                echo "    [WARN] $_name: $PUBLISHED_URL answered $_code — NOT checked this run"
+                continue ;;
+        esac
+
+        _old="$(bash "$HERE/scripts/pkg-fingerprint.sh" "$_pub/$_name")"
+        _new="$(bash "$HERE/scripts/pkg-fingerprint.sh" "$f")"
+        if [ "$_old" = "$_new" ]; then
+            # Byte-identical output, so every cache holding it stays valid.
+            cp -f "$_pub/$_name" "$f"
+            echo "    unchanged, keeping the published file: $_name"
+        else
+            echo "[ERR] $_name is already published with DIFFERENT content." >&2
+            echo "      published fingerprint: $_old" >&2
+            echo "      this build's:          $_new" >&2
+            echo "      Publishing it would leave every warm pacman cache with a file" >&2
+            echo "      that no longer matches the database (#18), and no existing" >&2
+            echo "      install would ever fetch the change — the version did not move." >&2
+            echo "      Bump pkgver/pkgrel (or NIDARA_REF) and build again." >&2
+            exit 1
+        fi
+    done
+    rm -rf "$_pub"
+fi
+
 # Sign the package with a detached .sig published next to it — that's what
 # pacman (≥6.1) downloads and verifies; repo-add no longer embeds signatures
 # in the db. Signing before repo-add keeps the option open either way.
