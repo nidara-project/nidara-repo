@@ -4,18 +4,18 @@ Description=Official Nidara boot splash screen
 ModuleName=two-step
 
 [two-step]
-Font=Adwaita Sans 12
-TitleFont=Adwaita Sans Light 30
-MonospaceFont=Adwaita Mono 12
+Font=Inter 11
+TitleFont=Inter Medium 14
+MonospaceFont=JetBrains Mono 11
 ImageDir=/usr/share/plymouth/themes/nidara
 DialogHorizontalAlignment=.5
-DialogVerticalAlignment=.382
+DialogVerticalAlignment=.55
 TitleHorizontalAlignment=.5
-TitleVerticalAlignment=.382
+TitleVerticalAlignment=.55
 HorizontalAlignment=.5
-VerticalAlignment=.60
+VerticalAlignment=.55
 WatermarkHorizontalAlignment=.5
-WatermarkVerticalAlignment=.45
+WatermarkVerticalAlignment=.28
 Transition=none
 TransitionDuration=0.0
 BackgroundStartColor=0xff000000

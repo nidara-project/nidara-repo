@@ -63,7 +63,7 @@
 # pkgver is a plain counter on purpose — this package has no upstream, the same
 # way nidara-apps has none.
 pkgname=nidara-system
-pkgver=2
+pkgver=3
 pkgrel=1
 pkgdesc="Nidara — what the product changes about Arch itself (boot splash, system defaults)"
 arch=(any)
@@ -99,6 +99,14 @@ package() {
     # difference between this and what archiso does.
     install -Dm644 "$startdir/files/mkinitcpio-nidara.conf" \
         "$pkgdir/etc/mkinitcpio.conf.d/nidara.conf"
+
+    # Localized LUKS password prompt for mkinitcpio (reads /etc/locale.conf).
+    install -Dm644 "$startdir/files/initcpio-hook-encrypt" \
+        "$pkgdir/etc/initcpio/hooks/encrypt"
+
+    # Early boot UTF-8 environment for plymouthd.
+    install -Dm644 "$startdir/files/initcpio-hook-plymouth" \
+        "$pkgdir/etc/initcpio/hooks/plymouth"
 
     # System defaults (see the inherited-not-ratified warning above).
     install -Dm644 "$startdir/files/nidara-watchdog.conf" \

@@ -4,6 +4,9 @@ Operation = Install
 Operation = Upgrade
 Operation = Remove
 Target = etc/mkinitcpio.conf.d/nidara.conf
+Target = etc/initcpio/hooks/encrypt
+Target = etc/initcpio/hooks/plymouth
+Target = usr/share/plymouth/themes/nidara/*
 
 [Action]
 Description = Nidara: rebuilding the initramfs for the boot splash...

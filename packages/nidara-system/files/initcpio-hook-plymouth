@@ -1,0 +1,31 @@
+#!/usr/bin/ash
+
+# nidara-system — ensure UTF-8 environment for plymouthd in early boot.
+#
+# Upstream plymouth hook starts plymouthd without an explicit LANG. If LANG is
+# unset or glibc does not initialize locale, mbrtowc() treats multibyte UTF-8
+# characters (like accented letters or non-Latin glyphs) as invalid, rendering
+# tofu/replacement rectangles in password prompts.
+#
+# This hook reads /etc/locale.conf and exports LANG and LC_ALL before launching
+# plymouthd.
+
+run_hook() {
+    mkdir -m755 -p /dev/pts
+    mount -t devpts devpts /dev/pts -o nosuid,noexec,gid=5,mode=620
+    if [ -f /etc/locale.conf ]; then
+        . /etc/locale.conf
+    fi
+    export LANG="${LANG:-C.UTF-8}"
+    export LC_ALL="${LANG:-C.UTF-8}"
+    plymouthd --mode=boot --pid-file=/run/plymouth/pid --attach-to-session
+    plymouth show-splash
+}
+
+run_latehook() {
+    plymouth update-root-fs --new-root-dir=/new_root
+}
+
+run_emergencyhook() {
+    plymouth --wait quit
+}
