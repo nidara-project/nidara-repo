@@ -22,13 +22,21 @@
 #     the installer→ nidara + nidara-apps      (what lands on the disk)
 #     anyone else  → pacman -S nidara-apps     (opt in, one command)
 #
-# ─── THE LIST IS DELIBERATELY UNDECIDED ──────────────────────────────────────
-# It holds today exactly what the ISO already carried, and nothing more, so that
-# standing up this machinery changed no product decision by accident. What
-# Nidara should ship — which browser, whether an image and document viewer
-# belong in a "curated" set at all, whether there should be a small list and a
-# generous one — has not been decided, and is better decided next to the
-# installer that will put it on someone's disk.
+# ─── THE LIST ────────────────────────────────────────────────────────────────
+# Decided 2026-09-13. The rule it follows: double-clicking any ordinary file a
+# person has — a photo, a PDF, a video, a song, a .zip, a font — opens
+# something, and the basic desktop tools nobody should have to go looking for
+# (calculator, clock, weather, a notepad, "what is eating my disk",
+# "what is hanging") are already there. Official repositories only: nothing
+# from the AUR, ever, in this list.
+#
+# NOT here: gnome-calendar. Alone it was ~330 MiB of the ~470 MiB this set
+# adds, because evolution-data-server brings two WebKit builds and the GNOME
+# Online Accounts library with it — GNOME services Nidara does not otherwise
+# run. The bar has its own calendar; a full one is a later decision.
+#
+# NOT here because the desktop already depends on them: the terminal (kitty)
+# and the file manager (nautilus).
 #
 # TO CHANGE THE SET: edit depends= below and BUMP pkgver. Without the bump the
 # repo republishes the same version and no existing install ever sees the
@@ -38,7 +46,7 @@
 # Deliberately NOT depending on `nidara`: asking for the app set should not drag
 # in a whole desktop as a side effect. The ISO and the installer name both.
 pkgname=nidara-apps
-pkgver=1
+pkgver=2
 pkgrel=1
 pkgdesc="Nidara — the curated application set (metapackage, ships no files)"
 arch=(any)
@@ -46,8 +54,34 @@ url="https://github.com/nidara-project/nidara-repo"
 license=(GPL-3.0-only)
 
 depends=(
-  # A machine with no way to browse the web is broken. This is the one entry
-  # that was already on the ISO before this package existed; Firefox vs anything
-  # else is not a decision anyone has taken yet.
+  # A machine with no way to browse the web is broken.
   firefox
+
+  # Opening what a person already has. All GTK4, so they follow the desktop's
+  # accent and light/dark through the Settings portal.
+  loupe                 # images
+  papers                # PDF and documents (evince's successor)
+  showtime              # video (totem's successor)
+  decibels              # audio: open a file, it plays — no library indexer
+  file-roller           # open and browse an archive (Nautilus extracts on its own)
+  gnome-font-viewer     # double-click a .ttf to preview and install it
+
+  # Codecs. showtime and decibels already pull gst-plugins-good; gst-libav is
+  # NOT pulled by anything, and without it h264/h265 — most video a person has —
+  # does not play. Both listed so that neither disappears by accident.
+  gst-plugins-good
+  gst-libav
+
+  # Everyday tools.
+  gnome-calculator
+  gnome-clocks          # world clocks, alarms, timers
+  gnome-weather
+  gnome-text-editor     # the notepad
+
+  # When something goes wrong.
+  mission-center        # task manager: CPU, memory, GPU, disks, per-app
+                        # (chosen over gnome-system-monitor, which shows no GPU)
+  gnome-disk-utility    # format a USB stick, SMART, mount an image — GTK3, no
+                        # mature GTK4 replacement
+  baobab                # what is using the disk
 )
