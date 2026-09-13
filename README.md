@@ -1,7 +1,7 @@
 # nidara-repo
 
 A small **pacman binary repository** for [Nidara](https://github.com/nidara-project/nidara-desktop),
-GPG-signed, holding five packages:
+GPG-signed, holding six packages:
 
 | Package | What it is |
 |---|---|
@@ -10,6 +10,7 @@ GPG-signed, holding five packages:
 | **`nidara-apps`** | A metapackage — no files, only dependencies — carrying the **curated application set**: what makes a freshly installed machine usable, as opposed to what the desktop needs to run. |
 | **`nidara-system`** | What the product changes about **Arch itself**: the boot splash, the mkinitcpio drop-in, the system defaults. Not the desktop's business — an Arch user installing only the desktop would not want a Plymouth theme. |
 | **`nidara-release`** | Two files: `/etc/os-release`, the **product's name**, and `/etc/pacman.d/nidara-mirrorlist`, **this repository's address**. Installing it is what makes a machine call itself Nidara and know where Nidara comes from, so only the ISO's installer asks for it — `install.sh` runs on an Arch somebody already uses and must not rename their operating system. |
+| **`yay`** | The AUR helper `nidara-system` depends on, so the AUR is available on a Nidara machine. Built here from the AUR's own PKGBUILD at the commit pinned in [`pins.env`](pins.env) (`YAY_AUR_REF`), checksums verified. Nothing Nidara installs by choice comes from the AUR. |
 
 Without this repo, Nidara's installer builds the desktop on every machine (minutes
 per install or update). With it, it installs in seconds like any other package.

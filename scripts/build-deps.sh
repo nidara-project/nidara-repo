@@ -76,6 +76,13 @@ if [ -n "${NIDARA_REF:-}" ]; then
 fi
 
 # ── the package this repo builds itself (filtered out of the pacman list) ────
+if [ -n "${YAY_AUR_REF:-}" ]; then
+    # yay's makedepends (go) come from the same AUR commit build-repo.sh builds.
+    ydir="$HERE/.yay-build"
+    mkdir -p "$ydir"
+    curl -fsSL "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=yay&id=$YAY_AUR_REF" -o "$ydir/PKGBUILD.deps"
+    pkgbuilds+=("$ydir/PKGBUILD.deps")
+fi
 internal=(nidara)
 
 # A union of nothing but PIPELINE means the tag's PKGBUILD never made it into

@@ -63,9 +63,9 @@
 # pkgver is a plain counter on purpose — this package has no upstream, the same
 # way nidara-apps has none.
 pkgname=nidara-system
-pkgver=3
+pkgver=4
 pkgrel=1
-pkgdesc="Nidara — what the product changes about Arch itself (boot splash, system defaults)"
+pkgdesc="Nidara — what the product changes about Arch itself (boot splash, system defaults, the AUR)"
 arch=(any)
 url="https://github.com/nidara-project/nidara-repo"
 license=(GPL-3.0-only)
@@ -82,7 +82,22 @@ license=(GPL-3.0-only)
 # theme without them is a directory nobody reads — which is precisely how this
 # shipped inert for four days when it was in the desktop's package with no
 # dependency at all.
-depends=(plymouth)
+depends=(
+  plymouth
+  # The AUR is AVAILABLE on a Nidara machine (decided 2026-09-13): nothing the
+  # product chooses to install comes from it — nidara-apps is official
+  # repositories only — but anyone who wants an AUR package types `yay -S` and
+  # it works, and anyone who does not never touches it. yay is built by this
+  # repo from a pinned AUR commit (YAY_AUR_REF in pins.env), not taken from the
+  # AUR at install time.
+  yay
+  # yay builds AUR packages with makepkg, and makepkg needs the compiler and
+  # fakeroot. Without base-devel the AUR is "enabled" and the first `yay -S`
+  # fails, which is worse than not offering it.
+  base-devel
+  # The system-wide fastfetch look (the "N" logo); the config is below.
+  fastfetch
+)
 # NOT a dependency of `nidara`, and nothing depends on this. The ISO and the
 # installer name it explicitly, which is exactly the list of paths entitled to
 # change somebody's boot: a machine that got the desktop from install.sh is not
@@ -123,4 +138,11 @@ package() {
     # upgrade touching both files regenerates once.
     install -Dm644 "$startdir/files/nidara-system.hook" \
         "$pkgdir/usr/share/libalpm/hooks/90-nidara-system.hook"
+
+    # fastfetch reads /etc/xdg/fastfetch/ only when ~/.config/fastfetch/ has no
+    # config, so a user's own replaces this whole file and never merges with it.
+    install -Dm644 "$startdir/files/fastfetch/config.jsonc" \
+        "$pkgdir/etc/xdg/fastfetch/config.jsonc"
+    install -Dm644 "$startdir/files/fastfetch/nidara.txt" \
+        "$pkgdir/usr/share/nidara-system/fastfetch/nidara.txt"
 }

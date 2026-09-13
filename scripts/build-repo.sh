@@ -117,6 +117,51 @@ if [ -n "${NIDARA_REF:-}" ]; then
     [ "$_built" -gt 0 ] || { echo "[ERR] makepkg produced no nidara package" >&2; exit 1; }
 fi
 
+PUBLISHED_URL="${PUBLISHED_URL:-https://nidara-project.github.io/nidara-repo/x86_64}"
+
+# ── yay ──────────────────────────────────────────────────────────────────────
+# nidara-system depends on it: the AUR is available on a Nidara machine. Built
+# from the AUR's own PKGBUILD at a PINNED commit (YAY_AUR_REF), with its
+# checksums verified — the one package here whose source= is a third party's
+# download, so it is the one makepkg call without --skipinteg.
+#
+# ⚠️ A Go build is not byte-reproducible across toolchains, and archlinux:latest
+# moves. Rebuilding the same yay-<ver>-<rel> on every run would therefore trip
+# the republish check below on the first Go update — a failed build for a
+# version nobody changed. So an already-published filename is DOWNLOADED and
+# reused, never rebuilt; only a filename the repo does not have yet is built.
+# To force a rebuild without a new AUR commit (pacman bumped libalpm's soname
+# and yay no longer starts), set YAY_REBUILD=N: pkgrel becomes <aur pkgrel>.N,
+# which is a new filename.
+if [ -n "${YAY_AUR_REF:-}" ]; then
+    echo "──────> yay (AUR @ $YAY_AUR_REF)"
+    ydir="$HERE/.yay-build"
+    rm -rf "$ydir"; mkdir -p "$ydir"
+    curl -fsSL "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=yay&id=$YAY_AUR_REF" -o "$ydir/PKGBUILD"
+    if [ -n "${YAY_REBUILD:-}" ]; then
+        sed -i -E "s/^pkgrel=([0-9]+)\$/pkgrel=\\1.$YAY_REBUILD/" "$ydir/PKGBUILD"
+    fi
+    if [ "$(id -u)" -eq 0 ]; then chown -R "$BUILD_USER" "$ydir"; fi
+    yayname="$(basename "$(cd "$ydir" && as_builder makepkg --packagelist | head -1)")"
+    _code="$(curl -sS -o "$ydir/$yayname" -w '%{http_code}' "$PUBLISHED_URL/$yayname" 2>/dev/null)" || _code=000
+    case "$_code" in
+        200)
+            cp -f "$ydir/$yayname" "$OUT/"
+            echo "         already published, reusing: $yayname" ;;
+        404)
+            rm -f "$ydir/$yayname"
+            ( cd "$ydir" && as_builder env SRCDEST="$SRCDEST" makepkg -f --noconfirm --nodeps --noprogressbar )
+            [ -s "$ydir/$yayname" ] || { echo "[ERR] makepkg did not produce $yayname" >&2; exit 1; }
+            cp -f "$ydir/$yayname" "$OUT/"
+            echo "         → $yayname" ;;
+        *)
+            # Cannot tell whether it is published. Building would risk publishing
+            # different bytes under a name pacman caches already hold (#18).
+            echo "[ERR] $PUBLISHED_URL answered $_code for $yayname — cannot tell if it is published; not building" >&2
+            exit 1 ;;
+    esac
+fi
+
 # ── nidara-release (the product's identity) ───────────────────────────────────
 # One file — /etc/os-release — carrying the product's NAME. It used to carry the
 # product's version too, and that version is why this block used to look nothing
@@ -216,7 +261,8 @@ cp -f "$sysfile" "$OUT/"
 # always to move the version — `pkgver`/`pkgrel` for the three committed
 # packages, `NIDARA_REF` for the two that come from a tag (and if a tag was
 # force-moved under a name that is already published, that is what this caught).
-PUBLISHED_URL="${PUBLISHED_URL:-https://nidara-project.github.io/nidara-repo/x86_64}"
+# `yay` comes from neither and never arrives here with new bytes under an old
+# name: its block above reuses the published file instead of rebuilding it.
 if [ "${SKIP_REPUBLISH_CHECK:-}" = 1 ]; then
     echo "──────> SKIPPING the republish check (SKIP_REPUBLISH_CHECK=1)"
 else
