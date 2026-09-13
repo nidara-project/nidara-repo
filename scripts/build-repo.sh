@@ -150,7 +150,11 @@ if [ -n "${YAY_AUR_REF:-}" ]; then
             echo "         already published, reusing: $yayname" ;;
         404)
             rm -f "$ydir/$yayname"
-            ( cd "$ydir" && as_builder env SRCDEST="$SRCDEST" makepkg -f --noconfirm --nodeps --noprogressbar )
+            # -buildvcs=false: $ydir sits inside THIS repository's checkout, so Go
+            # would stamp nidara-repo's commit into yay — and in CI, where the
+            # checkout belongs to root and makepkg runs as `builder`, git refuses
+            # the "dubious ownership" and the build dies with exit status 128.
+            ( cd "$ydir" && as_builder env SRCDEST="$SRCDEST" GOFLAGS="-buildvcs=false" makepkg -f --noconfirm --nodeps --noprogressbar )
             [ -s "$ydir/$yayname" ] || { echo "[ERR] makepkg did not produce $yayname" >&2; exit 1; }
             cp -f "$ydir/$yayname" "$OUT/"
             echo "         → $yayname" ;;
