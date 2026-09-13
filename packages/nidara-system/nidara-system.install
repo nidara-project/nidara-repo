@@ -13,20 +13,32 @@ _set_theme() {
     fi
 }
 
-# Printing (the `cups` dependency). The SOCKET, not the service: cupsd starts the
-# first time something prints, so an idle machine pays nothing for it.
+# Printing (the `cups` dependency). The SERVICE, not only the socket.
 #
-# Enabled ONCE: on install, and on the one upgrade that brings `cups` to a machine
-# that already had this package (from a pkgver below 5, the first to depend on
-# it). Never on later upgrades — an admin who disables printing must stay
-# disabled across every future `pacman -Syu`.
+# Arch's cups.socket listens on /run/cups/cups.sock and nothing else. Printing
+# from an app goes through that socket and works, but the admin page every
+# desktop offers — "Manage Printing", cups.desktop, which opens
+# http://localhost:631 — is TCP, and nothing listens there until cupsd has been
+# started by something else. Measured on a VM with only the socket enabled: 631
+# refuses; after one `lpstat -r` it answers 200. So cupsd runs from boot (≈9 MB
+# RSS). `enable cups.service` also enables cups.socket and cups.path — the
+# unit's own `Also=`.
 #
-# `enable` works in the installer's chroot (it only writes the wants/ symlink);
-# `start` is attempted only on a booted system, where there is a manager to ask.
+# Enabled ONCE per decision, never on later upgrades — an admin who disables
+# printing must stay disabled across every future `pacman -Syu`:
+#   - on install, and on the upgrade that brings `cups` to a machine that had
+#     this package before it depended on it (from below 5): everything;
+#   - on the upgrade from 5, which enabled only the socket: the service, but ONLY
+#     if the socket is still enabled. A socket somebody disabled is that
+#     decision, and 5 must not be read as consent to more than it did.
+#
+# `enable` works in the installer's chroot (it only writes symlinks, and
+# `is-enabled` only reads them); `start` is attempted only on a booted system,
+# where there is a manager to ask.
 _enable_printing() {
-    systemctl enable cups.socket >/dev/null 2>&1 || true
+    systemctl enable cups.service >/dev/null 2>&1 || true
     if [ -d /run/systemd/system ]; then
-        systemctl start cups.socket >/dev/null 2>&1 || true
+        systemctl start cups.service >/dev/null 2>&1 || true
     fi
 }
 
@@ -46,6 +58,9 @@ post_upgrade() {
     _set_theme
     # $2 is the version being upgraded FROM.
     if [ "$(vercmp "$2" 5)" -lt 0 ]; then
+        _enable_printing
+    elif [ "$(vercmp "$2" 6)" -lt 0 ] \
+         && systemctl is-enabled --quiet cups.socket 2>/dev/null; then
         _enable_printing
     fi
 }
