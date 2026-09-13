@@ -63,7 +63,7 @@
 # pkgver is a plain counter on purpose — this package has no upstream, the same
 # way nidara-apps has none.
 pkgname=nidara-system
-pkgver=5
+pkgver=6
 pkgrel=1
 pkgdesc="Nidara — what the product changes about Arch itself (boot splash, system defaults, the AUR, printing)"
 arch=(any)
@@ -101,8 +101,8 @@ depends=(
   # print through GTK's print dialog, which does. It arrived in the desktop's
   # depends (#529) with `systemctl enable --now cups.socket` in nidara-setup,
   # which an Arch user installing only the desktop would not want. Enabling a
-  # system service is policy, so it lives here; `.install` enables the socket,
-  # which starts cupsd only when something prints.
+  # system service is policy, so it lives here; `.install` enables cups.service
+  # (why the service and not just the socket is written there).
   cups
 )
 # NOT a dependency of `nidara`, and nothing depends on this. The ISO and the
