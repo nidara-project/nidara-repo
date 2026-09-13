@@ -63,9 +63,9 @@
 # pkgver is a plain counter on purpose — this package has no upstream, the same
 # way nidara-apps has none.
 pkgname=nidara-system
-pkgver=4
+pkgver=5
 pkgrel=1
-pkgdesc="Nidara — what the product changes about Arch itself (boot splash, system defaults, the AUR)"
+pkgdesc="Nidara — what the product changes about Arch itself (boot splash, system defaults, the AUR, printing)"
 arch=(any)
 url="https://github.com/nidara-project/nidara-repo"
 license=(GPL-3.0-only)
@@ -97,6 +97,13 @@ depends=(
   base-devel
   # The system-wide fastfetch look (the "N" logo); the config is below.
   fastfetch
+  # Printing. Not the desktop's: nothing in nidara-desktop talks to CUPS — apps
+  # print through GTK's print dialog, which does. It arrived in the desktop's
+  # depends (#529) with `systemctl enable --now cups.socket` in nidara-setup,
+  # which an Arch user installing only the desktop would not want. Enabling a
+  # system service is policy, so it lives here; `.install` enables the socket,
+  # which starts cupsd only when something prints.
+  cups
 )
 # NOT a dependency of `nidara`, and nothing depends on this. The ISO and the
 # installer name it explicitly, which is exactly the list of paths entitled to

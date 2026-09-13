@@ -13,8 +13,26 @@ _set_theme() {
     fi
 }
 
+# Printing (the `cups` dependency). The SOCKET, not the service: cupsd starts the
+# first time something prints, so an idle machine pays nothing for it.
+#
+# Enabled ONCE: on install, and on the one upgrade that brings `cups` to a machine
+# that already had this package (from a pkgver below 5, the first to depend on
+# it). Never on later upgrades — an admin who disables printing must stay
+# disabled across every future `pacman -Syu`.
+#
+# `enable` works in the installer's chroot (it only writes the wants/ symlink);
+# `start` is attempted only on a booted system, where there is a manager to ask.
+_enable_printing() {
+    systemctl enable cups.socket >/dev/null 2>&1 || true
+    if [ -d /run/systemd/system ]; then
+        systemctl start cups.socket >/dev/null 2>&1 || true
+    fi
+}
+
 post_install() {
     _set_theme
+    _enable_printing
     cat <<'MSG'
   Nidara system policy installed.
 
@@ -26,6 +44,10 @@ MSG
 
 post_upgrade() {
     _set_theme
+    # $2 is the version being upgraded FROM.
+    if [ "$(vercmp "$2" 5)" -lt 0 ]; then
+        _enable_printing
+    fi
 }
 
 pre_remove() {
