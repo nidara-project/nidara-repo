@@ -63,7 +63,7 @@
 # pkgver is a plain counter on purpose — this package has no upstream, the same
 # way nidara-apps has none.
 pkgname=nidara-system
-pkgver=7
+pkgver=8
 pkgrel=1
 pkgdesc="Nidara — what the product changes about Arch itself (boot splash, system defaults, the AUR, printing)"
 arch=(any)
@@ -110,6 +110,36 @@ depends=(
 # change somebody's boot: a machine that got the desktop from install.sh is not
 # on it.
 install=nidara-system.install
+
+# ⚠️ ONE of the four files this package puts under /etc is backed up, and the
+# asymmetry IS the decision — the same shape as nidara-release's, where
+# /etc/os-release is identity and the mirrorlist is configuration.
+#
+# The three that are NOT backed up all live in a drop-in DIRECTORY, which exists
+# precisely so that nobody has to edit the vendor's file: a file that sorts after
+# ours wins (99-local.conf, zz-local.conf), and nidara-journal.conf tells the
+# admin so in its own text. Backing them up would freeze OUR half of those
+# directories at whatever version a machine happened to install first, on paths
+# where a stale copy produces a machine that behaves like an older release with
+# nothing on screen to say why. The mkinitcpio drop-in is the clearest of the
+# three: it is on the path that builds the initramfs, and it already refuses to
+# touch the machine's own HOOKS (it edits the array it inherits instead of
+# declaring one), so the only thing an upgrade replaces there is our insertion
+# logic — which is exactly the part that must be allowed to improve.
+#
+# The one that IS backed up has no drop-in directory at all. fastfetch reads the
+# FIRST config it finds and stops; `fastfetch --list-config-paths` prints
+# ~/.config/fastfetch/, ~/fastfetch/, /etc/xdg/fastfetch/, /etc/fastfetch/ in
+# that order, so /etc/fastfetch/ is not an override point — it sorts BELOW ours
+# and is never reached while this file exists. A user replaces the whole thing
+# with ~/.config/fastfetch/config.jsonc; an ADMIN who wants every account on the
+# machine greeted differently has exactly one lever, and it is this file.
+#
+# backup= does not weaken what the file is for: an UNMODIFIED copy is still
+# replaced by the upgrade, which is how a change to the greeting reaches
+# everybody. Only a file somebody actually edited is kept, with ours arriving
+# beside it as .pacnew.
+backup=(etc/xdg/fastfetch/config.jsonc)
 
 package() {
     # The boot splash.
