@@ -63,7 +63,7 @@
 # pkgver is a plain counter on purpose — this package has no upstream, the same
 # way nidara-apps has none.
 pkgname=nidara-system
-pkgver=8
+pkgver=9
 pkgrel=1
 pkgdesc="Nidara — what the product changes about Arch itself (boot splash, system defaults, the AUR, printing)"
 arch=(any)
@@ -104,6 +104,21 @@ depends=(
   # system service is policy, so it lives here; `.install` enables cups.service
   # (why the service and not just the socket is written there).
   cups
+  # Location portal plumbing. The client is upstream xdg-desktop-portal, not
+  # Nidara's portal backend: it asks Nidara's Access backend first, then starts a
+  # GeoClue client over D-Bus. GeoClue reaches the machine today only through
+  # gnome-weather (nidara-apps), so changing a weather app would otherwise remove
+  # a system service the portal needs. GeoClue also ships its whitelisted demo
+  # agent and autostarts it here; until Nidara owns that second authorization
+  # step, a granted portal request may be followed by its libnotify prompt.
+  geoclue
+  # The localized default folders (Documents, Downloads...) on first login:
+  # this package's XDG autostart entry runs xdg-user-dirs-update, which the
+  # session starts through uwsm (config/hypr/hyprland.lua's `uwsm finalize`).
+  # Today it arrives via nautilus → xdg-user-dirs-gtk. That chain is sturdier
+  # (nautilus is core), but creating the user's folders is session policy, and
+  # policy is declared, not inherited.
+  xdg-user-dirs
 )
 # NOT a dependency of `nidara`, and nothing depends on this. The ISO and the
 # installer name it explicitly, which is exactly the list of paths entitled to
