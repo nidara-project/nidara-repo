@@ -63,7 +63,7 @@
 # pkgver is a plain counter on purpose — this package has no upstream, the same
 # way nidara-apps has none.
 pkgname=nidara-system
-pkgver=7
+pkgver=9
 pkgrel=1
 pkgdesc="Nidara — what the product changes about Arch itself (boot splash, system defaults, the AUR, printing)"
 arch=(any)
@@ -104,11 +104,13 @@ depends=(
   # system service is policy, so it lives here; `.install` enables cups.service
   # (why the service and not just the socket is written there).
   cups
-  # Location, for the desktop's own consent prompt (nidara-desktop#535): the
-  # portal's Location backend talks to geoclue over D-Bus. Today geoclue reaches
-  # the machine only as a dependency of gnome-weather (nidara-apps) — a weather
-  # app keeping a system service alive. The day that app is swapped or changes
-  # its dependencies, location consent breaks on every new install, silently.
+  # Location portal plumbing. The client is upstream xdg-desktop-portal, not
+  # Nidara's portal backend: it asks Nidara's Access backend first, then starts a
+  # GeoClue client over D-Bus. GeoClue reaches the machine today only through
+  # gnome-weather (nidara-apps), so changing a weather app would otherwise remove
+  # a system service the portal needs. GeoClue also ships its whitelisted demo
+  # agent and autostarts it here; until Nidara owns that second authorization
+  # step, a granted portal request may be followed by its libnotify prompt.
   geoclue
   # The localized default folders (Documents, Downloads...) on first login:
   # this package's XDG autostart entry runs xdg-user-dirs-update, which the
@@ -124,6 +126,36 @@ depends=(
 # on it.
 install=nidara-system.install
 
+# ⚠️ ONE of the four files this package puts under /etc is backed up, and the
+# asymmetry IS the decision — the same shape as nidara-release's, where
+# /etc/os-release is identity and the mirrorlist is configuration.
+#
+# The three that are NOT backed up all live in a drop-in DIRECTORY, which exists
+# precisely so that nobody has to edit the vendor's file: a file that sorts after
+# ours wins (99-local.conf, zz-local.conf), and nidara-journal.conf tells the
+# admin so in its own text. Backing them up would freeze OUR half of those
+# directories at whatever version a machine happened to install first, on paths
+# where a stale copy produces a machine that behaves like an older release with
+# nothing on screen to say why. The mkinitcpio drop-in is the clearest of the
+# three: it is on the path that builds the initramfs, and it already refuses to
+# touch the machine's own HOOKS (it edits the array it inherits instead of
+# declaring one), so the only thing an upgrade replaces there is our insertion
+# logic — which is exactly the part that must be allowed to improve.
+#
+# The one that IS backed up has no drop-in directory at all. fastfetch reads the
+# FIRST config it finds and stops; `fastfetch --list-config-paths` prints
+# ~/.config/fastfetch/, ~/fastfetch/, /etc/xdg/fastfetch/, /etc/fastfetch/ in
+# that order, so /etc/fastfetch/ is not an override point — it sorts BELOW ours
+# and is never reached while this file exists. A user replaces the whole thing
+# with ~/.config/fastfetch/config.jsonc; an ADMIN who wants every account on the
+# machine greeted differently has exactly one lever, and it is this file.
+#
+# backup= does not weaken what the file is for: an UNMODIFIED copy is still
+# replaced by the upgrade, which is how a change to the greeting reaches
+# everybody. Only a file somebody actually edited is kept, with ours arriving
+# beside it as .pacnew.
+backup=(etc/xdg/fastfetch/config.jsonc)
+
 package() {
     # The boot splash.
     install -d "$pkgdir/usr/share/plymouth/themes/nidara"
@@ -134,14 +166,6 @@ package() {
     # difference between this and what archiso does.
     install -Dm644 "$startdir/files/mkinitcpio-nidara.conf" \
         "$pkgdir/etc/mkinitcpio.conf.d/nidara.conf"
-
-    # Localized LUKS password prompt for mkinitcpio (reads /etc/locale.conf).
-    install -Dm644 "$startdir/files/initcpio-hook-encrypt" \
-        "$pkgdir/etc/initcpio/hooks/encrypt"
-
-    # Early boot UTF-8 environment for plymouthd.
-    install -Dm644 "$startdir/files/initcpio-hook-plymouth" \
-        "$pkgdir/etc/initcpio/hooks/plymouth"
 
     # System defaults (see the inherited-not-ratified warning above).
     install -Dm644 "$startdir/files/nidara-watchdog.conf" \
