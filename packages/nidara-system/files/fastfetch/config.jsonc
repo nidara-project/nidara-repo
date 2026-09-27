@@ -4,7 +4,7 @@
 // only when that is absent, so a user's own config replaces this one entirely;
 // nothing here is ever edited in place.
 //
-// The logo is the brand "N" as half-block text rather than an image: it renders
+// The logo is the brand "Ni" as half-block text rather than an image: it renders
 // in any terminal, over SSH and on a TTY, where an image protocol would not.
 // Colours are ANSI names, so they follow whatever palette the terminal has.
 {

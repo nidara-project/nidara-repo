@@ -63,7 +63,7 @@
 # pkgver is a plain counter on purpose — this package has no upstream, the same
 # way nidara-apps has none.
 pkgname=nidara-system
-pkgver=9
+pkgver=10
 pkgrel=1
 pkgdesc="Nidara — what the product changes about Arch itself (boot splash, system defaults, the AUR, printing)"
 arch=(any)
@@ -95,7 +95,7 @@ depends=(
   # fakeroot. Without base-devel the AUR is "enabled" and the first `yay -S`
   # fails, which is worse than not offering it.
   base-devel
-  # The system-wide fastfetch look (the "N" logo); the config is below.
+  # The system-wide fastfetch look (the "Ni" logo); the config is below.
   fastfetch
   # Printing. Not the desktop's: nothing in nidara-desktop talks to CUPS — apps
   # print through GTK's print dialog, which does. It arrived in the desktop's
