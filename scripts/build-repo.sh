@@ -110,6 +110,13 @@ if [ -n "${NIDARA_REF:-}" ]; then
     for pkgfile in "$ndir"/*.pkg.tar.*; do
         [ -e "$pkgfile" ] || continue
         case "$pkgfile" in *.sig) continue ;; esac
+        # Hyalo: built, not published, unless pins.env says so (see NIDARA_HYALO_PUBLISH there).
+        case "$(basename "$pkgfile")" in nidara-hyalo-[0-9]*)
+            if [ "${NIDARA_HYALO_PUBLISH:-}" != yes ]; then
+                echo "         ✗ $(basename "$pkgfile") — built, NOT published (NIDARA_HYALO_PUBLISH)"
+                continue
+            fi ;;
+        esac
         cp -f "$pkgfile" "$OUT/"
         echo "         → $(basename "$pkgfile")"
         _built=$((_built + 1))
