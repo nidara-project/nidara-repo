@@ -178,6 +178,9 @@ date and packager.
   An unchanged version means no existing install would ever fetch the change, so
   the fix is to move the version (`pkgver`/`pkgrel`, or `NIDARA_REF`).
 - **Not published yet** (404) → nothing to compare; it is built and published.
+- **Cannot tell** (Pages unreachable, a 5xx, anything but 200/404, after a few
+  retries) → the build **fails**. A check that could not run is not one that
+  passed; run it again once Pages answers.
 
 `PUBLISHED_URL` points the comparison somewhere else; `SKIP_REPUBLISH_CHECK=1`
 turns it off for a local build that is not going anywhere.

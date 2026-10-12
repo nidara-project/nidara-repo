@@ -126,6 +126,35 @@ fi
 
 PUBLISHED_URL="${PUBLISHED_URL:-https://nidara-project.github.io/nidara-repo/x86_64}"
 
+# published NAME DEST — downloads $PUBLISHED_URL/NAME to DEST and prints the HTTP
+# code: 200 (published, now in DEST), 404 (not published), anything else = could
+# not tell. An answer that may be passing — no connection (000), a 5xx, a 429 —
+# is asked again, PUBLISH_TRIES times in all with a growing pause, before it is
+# returned as it is. Every caller treats "could not tell" as a failure: both
+# checks below exist to keep different bytes from going out under a name pacman
+# caches already hold (#18), and a check that could not run is not one that passed.
+#
+# ⚠️ No `-f`. With it, curl exits non-zero on a 404 — so a `|| echo …` fallback
+# lands NEXT TO the code `-w` has already printed and the variable reads
+# `404failed`, which matches no branch. The ordinary case (a version that just
+# moved, or the first publish ever) would then fail on every package, every run.
+# Without it, curl exits 0 for any answer the server gave and non-zero only when
+# it could not ask — which is exactly the distinction here.
+published() {
+    local code try tries="${PUBLISH_TRIES:-4}"
+    for try in $(seq 1 "$tries"); do
+        if ! code="$(curl -sS --connect-timeout 15 --max-time 300 -o "$2" -w '%{http_code}' "$PUBLISHED_URL/$1" 2>/dev/null)"; then
+            code=000
+        fi
+        case "$code" in
+            200|404) break ;;
+            000|429|5??) [ "$try" -lt "$tries" ] && { echo "    $1: $PUBLISHED_URL answered $code — asking again ($try/$tries)" >&2; sleep $((try * 5)); } ;;
+            *) break ;;
+        esac
+    done
+    echo "$code"
+}
+
 # ── yay ──────────────────────────────────────────────────────────────────────
 # nidara-system depends on it: the AUR is available on a Nidara machine. Built
 # from the AUR's own PKGBUILD at a PINNED commit (YAY_AUR_REF), with its
@@ -150,7 +179,7 @@ if [ -n "${YAY_AUR_REF:-}" ]; then
     fi
     if [ "$(id -u)" -eq 0 ]; then chown -R "$BUILD_USER" "$ydir"; fi
     yayname="$(basename "$(cd "$ydir" && as_builder makepkg --packagelist | head -1)")"
-    _code="$(curl -sS -o "$ydir/$yayname" -w '%{http_code}' "$PUBLISHED_URL/$yayname" 2>/dev/null)" || _code=000
+    _code="$(published "$yayname" "$ydir/$yayname")"
     case "$_code" in
         200)
             cp -f "$ydir/$yayname" "$OUT/"
@@ -282,16 +311,7 @@ else
     for f in "$OUT"/*.pkg.tar.*; do
         [[ "$f" == *.sig ]] && continue
         _name="$(basename "$f")"
-        # ⚠️ No `-f`. With it, curl exits non-zero on a 404 — so a `|| echo …`
-        # fallback lands NEXT TO the code `-w` has already printed and the
-        # variable reads `404failed`, which matches neither branch below. The
-        # ordinary case (a version that just moved, or the first publish ever)
-        # would then be reported as a warning on every package, every run.
-        # Without it, curl exits 0 for any answer the server gave and non-zero
-        # only when it could not ask — which is exactly the distinction here.
-        if ! _code="$(curl -sS -o "$_pub/$_name" -w '%{http_code}' "$PUBLISHED_URL/$_name" 2>/dev/null)"; then
-            _code=000
-        fi
+        _code="$(published "$_name" "$_pub/$_name")"
         case "$_code" in
             200) ;;
             404)
@@ -299,10 +319,14 @@ else
                 # the first publish of anything. Nothing to compare against.
                 continue ;;
             *)
-                # Pages unreachable, or answering something else. Said OUT LOUD:
-                # a silent skip here looks exactly like a check that passed.
-                echo "    [WARN] $_name: $PUBLISHED_URL answered $_code — NOT checked this run"
-                continue ;;
+                # Pages unreachable, or answering something else, after the retries.
+                # This used to WARN and carry on to signing and publishing — so the
+                # one guarantee this check exists for was skipped exactly when it
+                # could not be verified (nidara-repo#30). Now it stops, like yay's
+                # block above. SKIP_REPUBLISH_CHECK=1 is the deliberate way past.
+                echo "[ERR] $_name: $PUBLISHED_URL answered $_code — cannot tell whether it is published with other content." >&2
+                echo "      Not publishing. Run again once Pages answers (or SKIP_REPUBLISH_CHECK=1, deliberately)." >&2
+                exit 1 ;;
         esac
 
         _old="$(bash "$HERE/scripts/pkg-fingerprint.sh" "$_pub/$_name")"
