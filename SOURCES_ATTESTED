@@ -1,0 +1,12 @@
+# <package file without .pkg.tar.*> <nidara-desktop commit it was built from>
+#
+# The record build-repo.sh publishes beside each tag-built package (<name>.source)
+# did not exist before 2026-10-12 (#32). These were published before it, so their
+# record is written here once, by hand, with the evidence:
+#   v0.13.0 → 7c3dee511648cd379291816e26c8190816c3ded7, committed 2026-10-01 19:45:50Z;
+#   the GitHub release 19:49:14Z; this repo's publishing build (run 36917875455)
+#   19:55:47Z; `git ls-remote` on 2026-10-12 still resolves the tag to that commit.
+# Nothing is added here for a package built after #32: its record is published.
+nidara-desktop-0.13.0-1-x86_64 7c3dee511648cd379291816e26c8190816c3ded7
+nidara-installer-0.13.0-1-x86_64 7c3dee511648cd379291816e26c8190816c3ded7
+nidara-kit-0.13.0-1-x86_64 7c3dee511648cd379291816e26c8190816c3ded7
