@@ -182,6 +182,17 @@ date and packager.
   retries) → the build **fails**. A check that could not run is not one that
   passed; run it again once Pages answers.
 
+**A version already published from the same commit is reused, not rebuilt.** A
+compiled package is not byte-reproducible across toolchains, and the build image
+moves, so rebuilding an unchanged release would read as "different content" and
+fail every change here that does not move a version (#32). Beside each package
+built from the `NIDARA_REF` tag the repo publishes `<name>.source`: the commit the
+tag resolved to. When every package of that tag is published with this commit
+beside it, they are downloaded instead of built; anything else (not published, no
+record, another commit — a force-moved tag) builds and goes through the check
+above. `SOURCES_ATTESTED` carries, by hand and with its evidence, the record for
+the packages published before there was one. `REBUILD_TAGGED=1` builds anyway.
+
 `PUBLISHED_URL` points the comparison somewhere else; `SKIP_REPUBLISH_CHECK=1`
 turns it off for a local build that is not going anywhere.
 

@@ -54,6 +54,39 @@ if [ "$(id -u)" -eq 0 ]; then
     chown -R "$BUILD_USER" "$SRCDEST" "$OUT"
 fi
 
+PUBLISHED_URL="${PUBLISHED_URL:-https://nidara-project.github.io/nidara-repo/x86_64}"
+
+# published NAME DEST — downloads $PUBLISHED_URL/NAME to DEST and prints the HTTP
+# code: 200 (published, now in DEST), 404 (not published), anything else = could
+# not tell. An answer that may be passing — no connection (000), a 5xx, a 429 —
+# is asked again, PUBLISH_TRIES times in all with a growing pause, before it is
+# returned as it is. Every caller treats "could not tell" as a failure: both
+# checks below exist to keep different bytes from going out under a name pacman
+# caches already hold (#18), and a check that could not run is not one that passed.
+#
+# ⚠️ No `-f`. With it, curl exits non-zero on a 404 — so a `|| echo …` fallback
+# lands NEXT TO the code `-w` has already printed and the variable reads
+# `404failed`, which matches no branch. The ordinary case (a version that just
+# moved, or the first publish ever) would then fail on every package, every run.
+# Without it, curl exits 0 for any answer the server gave and non-zero only when
+# it could not ask — which is exactly the distinction here.
+published() {
+    local code try tries="${PUBLISH_TRIES:-4}"
+    for try in $(seq 1 "$tries"); do
+        if ! code="$(curl -sS --connect-timeout 15 --max-time 300 -o "$2" -w '%{http_code}' "$PUBLISHED_URL/$1" 2>/dev/null)"; then
+            code=000
+        fi
+        case "$code" in
+            200|404) break ;;
+            000|429|5??) [ "$try" -lt "$tries" ] && { echo "    $1: $PUBLISHED_URL answered $code — asking again ($try/$tries)" >&2; sleep $((try * 5)); } ;;
+            *) break ;;
+        esac
+    done
+    echo "$code"
+}
+
+src_sha=""
+reused=0
 # ── nidara (the desktop package, and the only one) ────────────────────────────
 # Built from the nidara-desktop release tag pinned in pins.env (NIDARA_REF),
 # with the PKGBUILD that ships INSIDE that tag (packaging/nidara/) — the recipe
@@ -96,6 +129,59 @@ if [ -n "${NIDARA_REF:-}" ]; then
         exit 1
     fi
     if [ "$(id -u)" -eq 0 ]; then chown -R "$BUILD_USER" "$ndir"; fi
+
+    # ── what this commit already built is reused, never rebuilt (#32) ────────
+    # A compiled package is not byte-reproducible across toolchains, and
+    # archlinux:latest moves: v0.13.0 rebuilt with rust 1.99 instead of 1.98 came
+    # out with other bytes, and the republish check below — rightly — refused it.
+    # So every change to this repo that did not move a version failed. yay's block
+    # already answers this ("an already-published filename is reused, never
+    # rebuilt"); a tag needs one more thing yay gets from its AUR commit: proof the
+    # published file came from the SAME source, since a tag can be force-moved.
+    # That proof is the commit the tag resolves to, published beside each package
+    # as <name>.source. When every package this PKGBUILD makes is published with
+    # this commit beside it, they are downloaded instead of built. Anything less —
+    # a package not published yet, no record, another commit (a moved tag), Pages
+    # not answering — builds as before, and the republish check decides.
+    # SOURCES_ATTESTED holds the record for files published before there was one.
+    src_sha="$(git ls-remote "https://github.com/nidara-project/nidara-desktop" \
+        "refs/tags/$NIDARA_REF^{}" "refs/tags/$NIDARA_REF" 2>/dev/null | awk 'NR == 1 || /\^\{\}$/ {s = $1} END {print s}')" || src_sha=""
+    recorded() {  # recorded <pkg base name> — the commit published beside it, or nothing
+        local r
+        r="$(curl -sS --connect-timeout 15 --max-time 60 -w '\n%{http_code}' "$PUBLISHED_URL/$1.source" 2>/dev/null)" || return 0
+        if [ "$(tail -n1 <<< "$r")" = 200 ]; then head -n1 <<< "$r" | tr -d '[:space:]'; return 0; fi
+        awk -v n="$1" '!/^#/ && $1 == n {print $2}' "$HERE/SOURCES_ATTESTED" 2>/dev/null
+    }
+    reused=0
+    if [ -n "$src_sha" ] && [ "${REBUILD_TAGGED:-}" != 1 ]; then
+        echo "         $NIDARA_REF is $src_sha"
+        mapfile -t _names < <(cd "$ndir" && as_builder makepkg --packagelist | xargs -n1 basename)
+        _want=()
+        for _n in "${_names[@]}"; do
+            case "$_n" in nidara-hyalo-[0-9]*) [ "${NIDARA_HYALO_PUBLISH:-}" = yes ] || continue ;; esac
+            _want+=("$_n")
+        done
+        _ok=1
+        for _n in "${_want[@]}"; do
+            [ "$(recorded "${_n%.pkg.tar.*}")" = "$src_sha" ] || { _ok=0; echo "         $_n: not published from $src_sha — building"; break; }
+        done
+        if [ "$_ok" = 1 ] && [ "${#_want[@]}" -gt 0 ]; then
+            for _n in "${_want[@]}"; do
+                [ "$(published "$_n" "$OUT/$_n")" = 200 ] || { _ok=0; echo "         $_n: could not be downloaded — building"; break; }
+            done
+        fi
+        if [ "$_ok" = 1 ] && [ "${#_want[@]}" -gt 0 ]; then
+            for _n in "${_want[@]}"; do
+                echo "$src_sha" > "$OUT/${_n%.pkg.tar.*}.source"
+                echo "         already published from this commit, reusing: $_n"
+            done
+            reused=1
+        else
+            for _n in "${_want[@]}"; do rm -f "$OUT/$_n"; done
+        fi
+    fi
+fi
+if [ -n "${NIDARA_REF:-}" ] && [ "$reused" = 0 ]; then
     ( cd "$ndir" && as_builder env SRCDEST="$SRCDEST" makepkg -f --noconfirm --nodeps --skipinteg --noprogressbar )
     # EVERY package this PKGBUILD produced, not the newest one. From the next
     # nidara-desktop release on, it is a SPLIT package — `nidara` plus
@@ -118,42 +204,14 @@ if [ -n "${NIDARA_REF:-}" ]; then
             fi ;;
         esac
         cp -f "$pkgfile" "$OUT/"
-        echo "         → $(basename "$pkgfile")"
+        _b="$(basename "$pkgfile")"
+        [ -n "$src_sha" ] && echo "$src_sha" > "$OUT/${_b%.pkg.tar.*}.source"
+        echo "         → $_b"
         _built=$((_built + 1))
     done
     [ "$_built" -gt 0 ] || { echo "[ERR] makepkg produced no nidara package" >&2; exit 1; }
 fi
 
-PUBLISHED_URL="${PUBLISHED_URL:-https://nidara-project.github.io/nidara-repo/x86_64}"
-
-# published NAME DEST — downloads $PUBLISHED_URL/NAME to DEST and prints the HTTP
-# code: 200 (published, now in DEST), 404 (not published), anything else = could
-# not tell. An answer that may be passing — no connection (000), a 5xx, a 429 —
-# is asked again, PUBLISH_TRIES times in all with a growing pause, before it is
-# returned as it is. Every caller treats "could not tell" as a failure: both
-# checks below exist to keep different bytes from going out under a name pacman
-# caches already hold (#18), and a check that could not run is not one that passed.
-#
-# ⚠️ No `-f`. With it, curl exits non-zero on a 404 — so a `|| echo …` fallback
-# lands NEXT TO the code `-w` has already printed and the variable reads
-# `404failed`, which matches no branch. The ordinary case (a version that just
-# moved, or the first publish ever) would then fail on every package, every run.
-# Without it, curl exits 0 for any answer the server gave and non-zero only when
-# it could not ask — which is exactly the distinction here.
-published() {
-    local code try tries="${PUBLISH_TRIES:-4}"
-    for try in $(seq 1 "$tries"); do
-        if ! code="$(curl -sS --connect-timeout 15 --max-time 300 -o "$2" -w '%{http_code}' "$PUBLISHED_URL/$1" 2>/dev/null)"; then
-            code=000
-        fi
-        case "$code" in
-            200|404) break ;;
-            000|429|5??) [ "$try" -lt "$tries" ] && { echo "    $1: $PUBLISHED_URL answered $code — asking again ($try/$tries)" >&2; sleep $((try * 5)); } ;;
-            *) break ;;
-        esac
-    done
-    echo "$code"
-}
 
 # ── yay ──────────────────────────────────────────────────────────────────────
 # nidara-system depends on it: the AUR is available on a Nidara machine. Built
